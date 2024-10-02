@@ -29,11 +29,11 @@ def query_llm(matched_texts, user_question):
             top_p=1,
             frequency_penalty=0.1,
             presence_penalty=0.5,
-            response_format="text"
+            
         )
 
         # Extract the response text
-        return response.choices[0].message['content'].strip()
+        return response.choices[0].message.content.strip()
 
     except Exception as e:
         print(f"Error querying LLM: {str(e)}")
