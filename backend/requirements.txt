@@ -5,3 +5,4 @@ pinecone-client
 openai
 python-dotenv
 validators
+Flask-CORS
