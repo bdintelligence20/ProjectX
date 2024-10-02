@@ -1,28 +1,39 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from app.scraping import scrape_website
-from app.pinecone_client import store_in_pinecone
+from flask_cors import cross_origin
 
 bp = Blueprint('main', __name__)
 
+# Handle POST request to scrape and return data
 @bp.route('/scrape', methods=['POST'])
-def scrape_and_store():
+@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')  # Allow your frontend origin
+def scrape_and_return():
     data = request.json
     company_url = data.get('companyUrl')
-    
+
     if company_url:
         try:
-            # Scrape the website (up to max_pages)
             scraped_data = scrape_website(company_url)
-            
+
             if scraped_data:
-                # Store scraped data in Pinecone
-                embedding = store_in_pinecone(company_url, scraped_data)
-                return jsonify({"message": "Website scraped and data stored successfully", "embedding": embedding}), 200
+                response = make_response(jsonify({
+                    "message": "Website scraped successfully", 
+                    "data": scraped_data[:500]
+                }), 200)
+                
+                # No need to manually add CORS headers here
+                return response
             else:
-                return jsonify({"error": "Failed to scrape website"}), 500
-        
+                return jsonify({"error": "No data scraped"}), 500
+
         except Exception as e:
-            print(f"Error occurred: {str(e)}")
             return jsonify({"error": f"Failed to scrape website: {str(e)}"}), 500
-    else:
-        return jsonify({"error": "Company URL is required"}), 400
+
+    return jsonify({"error": "Company URL is required"}), 400
+
+# Handle OPTIONS preflight request (CORS preflight request handler)
+@bp.route('/scrape', methods=['OPTIONS'])
+@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')  # Ensure preflight uses same CORS origin
+def options():
+    response = make_response()
+    return response
