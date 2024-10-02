@@ -36,8 +36,11 @@ def store_in_pinecone(company_url, scraped_data):
         if embedding:
             print(f"Generated embedding length: {len(embedding)}")  # Log embedding length
 
-            # Upsert the embedding into Pinecone with the company URL as the ID
-            response = index.upsert([(company_url, embedding)])
+            # Extract domain from URL as namespace
+            namespace = company_url.split("//")[-1].split("/")[0]  # Example: "www.example.com"
+            
+            # Upsert the embedding into Pinecone with the company URL as the ID, and use the namespace
+            response = index.upsert([(company_url, embedding)], namespace=namespace)
             print(f"Pinecone upsert response: {response}")  # Log Pinecone response
         else:
             print("Failed to generate embedding.")

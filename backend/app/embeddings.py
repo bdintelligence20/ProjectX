@@ -1,23 +1,21 @@
-import openai
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables from .env
 load_dotenv()
 
-# Retrieve OpenAI API key from environment variable
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client with API key
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Initialize OpenAI with the API key
-openai.api_key = OPENAI_API_KEY
+MODEL = "text-embedding-ada-002"  # Set the desired model (e.g., text-embedding-ada-002)
 
 def get_embedding(text):
     try:
-        # Call OpenAI API to generate embeddings
-        response = openai.Embedding.create(input=[text], model="text-embedding-ada-002")
-        embedding = response['data'][0]['embedding']
-        print(f"Generated embedding: {embedding[:10]}")  # Log the first 10 elements for verification
+        # Generate embeddings using OpenAI's API with the client
+        response = client.embeddings.create(input=[text], model=MODEL)
+        embedding = response['data'][0]['embedding']  # Extract the embedding vector
         return embedding
     except Exception as e:
         print(f"Error generating embedding: {str(e)}")
-        raise
+        return None
