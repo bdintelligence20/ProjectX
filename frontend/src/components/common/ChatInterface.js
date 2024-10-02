@@ -13,6 +13,7 @@ export default function ChatInterface() {
       const response = await axios.post('https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev/scrape', {
         companyUrl
       });
+      console.log("Response from backend:", response.data);
       setResponseMessage(response.data.message + ": " + response.data.data);
     } catch (error) {
       console.error('Error scraping website:', error);
@@ -20,7 +21,6 @@ export default function ChatInterface() {
     }
   };
   
-
   const handleChatSubmit = () => {
     // Handle the chat input submission for RAG here
     console.log("User asked:", chatInput);
