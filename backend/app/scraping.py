@@ -24,7 +24,7 @@ def scrape_website(url, max_depth=3, depth=0):
     
     try:
         # Make a request to the URL
-        response = requests.get(url, timeout=10, verify=False)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()  # Raise an exception for 4xx/5xx errors
 
         # Parse the content using BeautifulSoup
