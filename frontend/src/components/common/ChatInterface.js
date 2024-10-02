@@ -10,7 +10,7 @@ export default function ChatInterface() {
 
   const handleScrape = async () => {
     try {
-      const response = await axios.post('http://localhost:5000/scrape', {
+      const response = await axios.post('https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev/scrape', {
         companyUrl
       });
       setResponseMessage(response.data.message + ": " + response.data.data);
@@ -19,6 +19,7 @@ export default function ChatInterface() {
       setResponseMessage('Failed to scrape website');
     }
   };
+  
 
   const handleChatSubmit = () => {
     // Handle the chat input submission for RAG here

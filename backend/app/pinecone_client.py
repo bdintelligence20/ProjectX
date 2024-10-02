@@ -1,16 +1,17 @@
 import os
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone, Index, ServerlessSpec
 from dotenv import load_dotenv
 from app.embeddings import get_embedding
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Retrieve Pinecone API key from environment variables
+# Retrieve Pinecone API key and host from environment variables
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX_HOST = "https://business-research-d6aehd0.svc.aped-4627-b74a.pinecone.io"  # Your host URL
 
 # Initialize Pinecone instance
-pc = Pinecone(api_key=PINECONE_API_KEY, verify_ssl=False)
+pc = Pinecone(api_key=PINECONE_API_KEY)
 
 # Check if the index exists, if not, create it
 if 'business-research' not in pc.list_indexes().names():
@@ -24,8 +25,8 @@ if 'business-research' not in pc.list_indexes().names():
         )
     )
 
-# Connect to the existing index
-index = pc.index('business-research')
+# Connect to the existing index using the Index class, providing the host
+index = Index('business-research', host=PINECONE_INDEX_HOST)
 
 def store_in_pinecone(company_url, scraped_data):
     try:
