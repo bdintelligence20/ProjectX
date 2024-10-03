@@ -1,3 +1,8 @@
+import PyPDF2
+import docx
+import pandas as pd
+
+# Existing imports
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -11,23 +16,12 @@ nltk.download('punkt')
 # A set to keep track of visited URLs to avoid duplication
 visited_urls = set()
 
-## Initialize tokenizer for handling OpenAI's token limits
+# Initialize tokenizer for handling OpenAI's token limits
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
+# Function to chunk text for embedding
 def chunk_text(text, max_tokens=8192, overlap=100):
-    """
-    Chunk text into manageable pieces that fit within the token limit.
-    Uses sliding window for overlap to preserve context.
-    
-    Parameters:
-    - text: The full text to be chunked.
-    - max_tokens: Maximum tokens per chunk.
-    - overlap: Number of tokens that overlap between chunks.
-    
-    Returns:
-    - List of text chunks.
-    """
-    sentences = sent_tokenize(text)  # Use NLTK to split text into sentences
+    sentences = sent_tokenize(text)
     chunks = []
     current_chunk = []
 
@@ -38,18 +32,15 @@ def chunk_text(text, max_tokens=8192, overlap=100):
         else:
             chunks.append(" ".join(current_chunk))
             current_chunk = [sentence]
-    
-    # Add the last chunk
+
     if current_chunk:
         chunks.append(" ".join(current_chunk))
 
-    # Implement sliding window
     sliding_chunks = []
-    for i in range(0, len(chunks)):
+    for i in range(len(chunks)):
         if i == 0:
             sliding_chunks.append(chunks[i])
         else:
-            # Combine overlap tokens from the previous chunk
             prev_chunk_tokens = tokenizer.encode(chunks[i - 1])
             current_chunk_tokens = tokenizer.encode(chunks[i])
             combined_chunk = prev_chunk_tokens[-overlap:] + current_chunk_tokens
@@ -57,42 +48,47 @@ def chunk_text(text, max_tokens=8192, overlap=100):
 
     return sliding_chunks
 
+# Function to extract text from a PDF
+def extract_text_from_pdf(file_path):
+    text = ""
+    with open(file_path, 'rb') as file:
+        pdf_reader = PyPDF2.PdfReader(file)
+        for page_num in range(len(pdf_reader.pages)):
+            text += pdf_reader.pages[page_num].extract_text()
+    return text
+
+# Function to extract text from DOCX
+def extract_text_from_docx(file_path):
+    doc = docx.Document(file_path)
+    full_text = []
+    for para in doc.paragraphs:
+        full_text.append(para.text)
+    return "\n".join(full_text)
+
+# Function to extract text from CSV
+def extract_text_from_csv(file_path):
+    df = pd.read_csv(file_path)
+    return df.to_string()
+
+# Function to scrape website as before
 def scrape_website(url, max_depth=3, depth=0):
-    """
-    Scrape the given website recursively, following internal links.
-    
-    Parameters:
-    - url: The website URL to scrape.
-    - max_depth: The maximum depth to follow links (to prevent scraping too deep).
-    - depth: Current depth of the recursion.
-    
-    Returns:
-    - List of scraped data from all visited pages.
-    """
     if depth > max_depth or url in visited_urls:
         return []
     
     visited_urls.add(url)
-    
-    try:
-        # Make a request to the URL
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raise an exception for 4xx/5xx errors
 
-        # Parse the content using BeautifulSoup
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Collect the main content text of the current page
         page_text = soup.get_text(separator=' ', strip=True)
-        
-        # Chunk the page content to stay within the token limits, using sliding window
+
         scraped_data = chunk_text(page_text)
-        
-        # Find all internal links on the page
+
         base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))
         for link in soup.find_all('a', href=True):
-            link_url = urljoin(base_url, link['href'])  # Handle relative URLs
-            # Ensure the link is internal (same domain)
+            link_url = urljoin(base_url, link['href'])
             if base_url in link_url and link_url not in visited_urls:
                 scraped_data.extend(scrape_website(link_url, max_depth, depth + 1))
 
@@ -101,6 +97,17 @@ def scrape_website(url, max_depth=3, depth=0):
     except requests.RequestException as e:
         print(f"Error scraping {url}: {str(e)}")
         return []
+
+# Function to extract text from various file types
+def extract_text_from_file(file_path, file_type):
+    if file_type == 'pdf':
+        return extract_text_from_pdf(file_path)
+    elif file_type == 'docx':
+        return extract_text_from_docx(file_path)
+    elif file_type == 'csv':
+        return extract_text_from_csv(file_path)
+    else:
+        raise ValueError("Unsupported file type")
 
 # Example usage
 if __name__ == "__main__":

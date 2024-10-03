@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, make_response
-from app.scraping import scrape_website
+from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from flask_cors import cross_origin
@@ -32,7 +32,7 @@ def scrape_and_store():
     return jsonify({"error": "Company URL is required"}), 400
 
 
-# Handle POST request to add different source types (URLs, PDFs, DOCX, etc.)
+# Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
 @cross_origin(origins='https://your-app-url.com')
 def add_source():
@@ -46,11 +46,15 @@ def add_source():
         filepath = os.path.join('uploads', filename)  # Store the uploaded file
         file.save(filepath)
 
-        # Process file (e.g., extract text from PDF or DOCX)
-        extracted_text = extract_text_from_file(filepath)  # Custom function to extract text from the file
-        store_in_pinecone(filename, [extracted_text])
+        # Process file based on its type (PDF, DOCX, CSV)
+        file_type = filename.split('.')[-1].lower()
+        if file_type in ['pdf', 'docx', 'csv']:
+            extracted_text = extract_text_from_file(filepath, file_type)  # Custom function to extract text
+            store_in_pinecone(filename, [extracted_text])
 
-        return jsonify({"message": "File uploaded, processed, and stored successfully"}), 200
+            return jsonify({"message": f"File {filename} uploaded, processed, and stored successfully"}), 200
+        else:
+            return jsonify({"error": "Unsupported file type"}), 400
 
     elif source_type == 'url':
         scraped_data = scrape_website(content)  # Treat as website URL
