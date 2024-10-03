@@ -2,6 +2,7 @@ import os
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 from app.embeddings import get_embedding
+from app.summarization import summarize_text  # Summarization function from your summarization module
 
 # Load environment variables from .env
 load_dotenv()
@@ -24,6 +25,7 @@ if index_name not in pc.list_indexes().names():
 # Connect to the Pinecone index
 index = pc.Index(index_name)  # Retrieve the index correctly
 
+
 def store_in_pinecone(company_url, scraped_data):
     try:
         # Ensure company_url is a string, not a list
@@ -36,7 +38,11 @@ def store_in_pinecone(company_url, scraped_data):
         # Process each chunk of scraped data if it's a list
         if isinstance(scraped_data, list):
             for i, chunk in enumerate(scraped_data):
-                embedding = get_embedding(chunk)
+                # Summarize larger chunks for more efficient embedding
+                summary = summarize_text(chunk) if len(chunk) > 1000 else chunk
+
+                # Generate the embedding for each chunk or summary
+                embedding = get_embedding(summary)
                 if embedding:
                     print(f"Generated embedding for chunk {i} from {company_url} with length: {len(embedding)}")
 
@@ -46,7 +52,7 @@ def store_in_pinecone(company_url, scraped_data):
                     # Create a unique ID for each chunk (e.g., company_url_chunk_i)
                     vector_id = f"{company_url}_chunk_{i}"
 
-                    # Include the chunk as metadata
+                    # Include the chunk or summary as metadata
                     metadata = {"text": chunk}
 
                     # Upsert the embedding with metadata and namespace
@@ -69,7 +75,6 @@ def store_in_pinecone(company_url, scraped_data):
         print(f"Error storing data in Pinecone: {str(e)}")
 
 
-
 def query_pinecone(user_query, namespace):
     try:
         # Get embedding for the user query
@@ -82,6 +87,9 @@ def query_pinecone(user_query, namespace):
             namespace=namespace,
             include_metadata=True  # Ensure the metadata (original text) is included
         )
+
+        # Log the Pinecone query results
+        print(f"Pinecone query results: {results}")
 
         # Extract the original text from the metadata of the results
         matched_texts = [match['metadata']['text'] for match in results['matches'] if 'metadata' in match]
