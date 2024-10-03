@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Typography, Modal, Button, Card, CardContent, IconButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import axios from 'axios';
 
 const modalStyle = {
   position: 'absolute',
@@ -18,27 +19,112 @@ const modalStyle = {
 
 export default function AddSourcesModal({ onSourceAdded }) {
   const [open, setOpen] = useState(false);
-  const [activeMethod, setActiveMethod] = useState(null); // Track method of source input
+  const [activeMethod, setActiveMethod] = useState(null);  // Track method of source input
   const [sourceLink, setSourceLink] = useState('');  // Store the website link input
+  const [file, setFile] = useState(null);  // Store uploaded file
+  const [pastedText, setPastedText] = useState('');  // Store pasted text
+  const [statusMessage, setStatusMessage] = useState('');  // To provide feedback
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => {
     setOpen(false);
     setActiveMethod(null);
-    setSourceLink('');  // Reset input field when modal closes
+    setSourceLink('');  // Reset inputs when modal closes
+    setFile(null);
+    setPastedText('');
+    setStatusMessage('');  // Reset the status message
   };
 
-  const handleAddSource = () => {
+  // Handle website link addition
+  const handleAddSource = async () => {
     if (sourceLink.trim()) {
-      const newSource = {
-        title: `Website: ${sourceLink}`,
-        link: sourceLink,
-      };
-      onSourceAdded(newSource);  // Add new source via the prop function
-      handleClose();  // Close modal after adding source
+      try {
+        setStatusMessage('Processing website link...');
+
+        const response = await axios.post('/add-source', {
+          sourceType: 'url',
+          content: sourceLink,
+        });
+
+        if (response.status === 200) {
+          const newSource = {
+            title: `Website: ${sourceLink}`,
+            link: sourceLink,
+          };
+          onSourceAdded(newSource);  // Add new source via the prop function
+          setStatusMessage('Website link processed successfully!');
+          handleClose();
+        } else {
+          setStatusMessage('Failed to process website link.');
+        }
+      } catch (error) {
+        setStatusMessage('Error processing website link.');
+      }
     }
   };
 
+  // Handle file addition
+  const handleFileUpload = async () => {
+    if (file) {
+      try {
+        setStatusMessage('Processing file...');
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sourceType', 'file');
+
+        const response = await axios.post('/add-source', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        if (response.status === 200) {
+          const newSource = {
+            title: `File: ${file.name}`,
+            file: file,
+          };
+          onSourceAdded(newSource);
+          setStatusMessage('File processed successfully!');
+          handleClose();
+        } else {
+          setStatusMessage('Failed to process file.');
+        }
+      } catch (error) {
+        setStatusMessage('Error processing file.');
+      }
+    }
+  };
+
+  // Handle pasted text addition
+  const handleAddPastedText = async () => {
+    if (pastedText.trim()) {
+      try {
+        setStatusMessage('Processing pasted text...');
+
+        const response = await axios.post('/add-source', {
+          sourceType: 'text',
+          content: pastedText,
+        });
+
+        if (response.status === 200) {
+          const newSource = {
+            title: 'Pasted Text',
+            text: pastedText,
+          };
+          onSourceAdded(newSource);
+          setStatusMessage('Pasted text processed successfully!');
+          handleClose();
+        } else {
+          setStatusMessage('Failed to process pasted text.');
+        }
+      } catch (error) {
+        setStatusMessage('Error processing pasted text.');
+      }
+    }
+  };
+
+  // Render content based on selected input method
   const renderContent = () => {
     switch (activeMethod) {
       case 'website':
@@ -64,13 +150,58 @@ export default function AddSourcesModal({ onSourceAdded }) {
             </Button>
           </>
         );
-      // Additional methods like text or file upload can be added here later
+      case 'file':
+        return (
+          <>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Upload File</Typography>
+            <input
+              type="file"
+              accept=".pdf,.csv,.docx,.eml"
+              onChange={(e) => setFile(e.target.files[0])}
+            />
+            <Button
+              variant="contained"
+              sx={{ backgroundColor: '#0073e6', marginTop: '20px' }}
+              onClick={handleFileUpload}
+              disabled={!file}  // Disable button if no file is selected
+            >
+              Submit
+            </Button>
+            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>
+              Back
+            </Button>
+          </>
+        );
+      case 'text':
+        return (
+          <>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Paste Copied Text</Typography>
+            <textarea
+              placeholder="Paste your text here..."
+              rows="6"
+              style={{ padding: '10px', width: '100%' }}
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+            />
+            <Button
+              variant="contained"
+              sx={{ backgroundColor: '#0073e6', marginTop: '20px' }}
+              onClick={handleAddPastedText}
+              disabled={!pastedText.trim()}  // Disable if no text is pasted
+            >
+              Submit
+            </Button>
+            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>
+              Back
+            </Button>
+          </>
+        );
       default:
         return (
           <>
             <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Add sources</Typography>
             <Typography variant="body2" color="textSecondary" sx={{ marginBottom: '30px' }}>
-              Upload sources by adding website links or pasting text.
+              Upload sources by adding website links, files, or pasting text.
             </Typography>
             <Box
               sx={{
@@ -106,7 +237,44 @@ export default function AddSourcesModal({ onSourceAdded }) {
                   </Button>
                 </CardContent>
               </Card>
-              {/* Additional source types (e.g., text, email) can be added here */}
+              <Card
+                sx={{
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  flex: '1',
+                }}
+              >
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>File (PDF, CSV, DOCX, EML)</Typography>
+                  <Button
+                    onClick={() => setActiveMethod('file')}
+                    variant="contained"
+                    sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}
+                  >
+                    File
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card
+                sx={{
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  flex: '1',
+                }}
+              >
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Pasted Text</Typography>
+                  <Button
+                    onClick={() => setActiveMethod('text')}
+                    variant="contained"
+                    sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}
+                  >
+                    Pasted Text
+                  </Button>
+                </CardContent>
+              </Card>
             </Box>
           </>
         );

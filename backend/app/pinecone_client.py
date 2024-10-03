@@ -2,9 +2,10 @@ import os
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 from app.embeddings import get_embedding
-from app.summarization import summarize_text  # Summarization function from your summarization module
+from app.summarization import summarize_text
+from app.scraping import extract_text_from_file  # Import the file extraction method for PDFs, DOCX, CSVs
 
-# Load environment variables from .env
+# Load environment variables
 load_dotenv()
 
 # Initialize Pinecone client
@@ -26,16 +27,13 @@ if index_name not in pc.list_indexes().names():
 index = pc.Index(index_name)  # Retrieve the index correctly
 
 
-def store_in_pinecone(company_url, scraped_data):
+def store_in_pinecone(source_id, scraped_data):
+    """
+    Store embeddings and metadata in Pinecone for each chunk or summarized content.
+    Handles websites, file content (PDF, DOCX, CSV), and text.
+    """
     try:
-        # Ensure company_url is a string, not a list
-        if isinstance(company_url, list):
-            company_url = company_url[0]
-
-        # Truncate the URL to ensure the ID length is below 512 characters
-        truncated_url = company_url[:500]  # Truncate to 500 characters
-
-        # Process each chunk of scraped data if it's a list
+        # Process each chunk of scraped data
         if isinstance(scraped_data, list):
             for i, chunk in enumerate(scraped_data):
                 # Summarize larger chunks for more efficient embedding
@@ -44,13 +42,13 @@ def store_in_pinecone(company_url, scraped_data):
                 # Generate the embedding for each chunk or summary
                 embedding = get_embedding(summary)
                 if embedding:
-                    print(f"Generated embedding for chunk {i} from {company_url} with length: {len(embedding)}")
+                    print(f"Generated embedding for chunk {i} from {source_id} with length: {len(embedding)}")
 
-                    # Use domain as namespace
-                    namespace = company_url.split("//")[-1].split("/")[0]
+                    # Use domain or file name as namespace
+                    namespace = source_id.split("//")[-1].split("/")[0] if 'http' in source_id else source_id
 
-                    # Create a unique ID for each chunk (e.g., company_url_chunk_i)
-                    vector_id = f"{company_url}_chunk_{i}"
+                    # Create a unique ID for each chunk (e.g., source_id_chunk_i)
+                    vector_id = f"{source_id}_chunk_{i}"
 
                     # Include the chunk or summary as metadata
                     metadata = {"text": chunk}
@@ -61,16 +59,16 @@ def store_in_pinecone(company_url, scraped_data):
                 else:
                     print(f"Failed to generate embedding for chunk {i}.")
         else:
-            # Handle single chunk scenario
+            # Handle single chunk scenario (text source, simple file content)
             embedding = get_embedding(scraped_data)
             if embedding:
-                namespace = company_url.split("//")[-1].split("/")[0]
-                vector_id = truncated_url
+                namespace = source_id.split("//")[-1].split("/")[0] if 'http' in source_id else source_id
+                vector_id = source_id
                 metadata = {"text": scraped_data}  # Include the full scraped data as metadata
                 response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
                 print(f"Pinecone upsert response: {response}")
             else:
-                print(f"Failed to generate embedding for {company_url}.")
+                print(f"Failed to generate embedding for {source_id}.")
     except Exception as e:
         print(f"Error storing data in Pinecone: {str(e)}")
 
