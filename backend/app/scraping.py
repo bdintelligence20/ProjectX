@@ -1,9 +1,61 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
+import nltk
+from nltk.tokenize import sent_tokenize
+import tiktoken  # For tokenizing
+
+# Download the necessary NLTK resources (if not already installed)
+nltk.download('punkt')
 
 # A set to keep track of visited URLs to avoid duplication
 visited_urls = set()
+
+# Initialize tokenizer for handling OpenAI's token limits
+tokenizer = tiktoken.get_encoding("gpt-3.5-turbo")
+
+def chunk_text(text, max_tokens=8192, overlap=100):
+    """
+    Chunk text into manageable pieces that fit within the token limit.
+    Uses sliding window for overlap to preserve context.
+    
+    Parameters:
+    - text: The full text to be chunked.
+    - max_tokens: Maximum tokens per chunk.
+    - overlap: Number of tokens that overlap between chunks.
+    
+    Returns:
+    - List of text chunks.
+    """
+    sentences = sent_tokenize(text)  # Use NLTK to split text into sentences
+    chunks = []
+    current_chunk = []
+
+    for sentence in sentences:
+        tokens = tokenizer.encode(" ".join(current_chunk + [sentence]))
+        if len(tokens) <= max_tokens:
+            current_chunk.append(sentence)
+        else:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = [sentence]
+    
+    # Add the last chunk
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
+    # Implement sliding window
+    sliding_chunks = []
+    for i in range(0, len(chunks)):
+        if i == 0:
+            sliding_chunks.append(chunks[i])
+        else:
+            # Combine overlap tokens from the previous chunk
+            prev_chunk_tokens = tokenizer.encode(chunks[i - 1])
+            current_chunk_tokens = tokenizer.encode(chunks[i])
+            combined_chunk = prev_chunk_tokens[-overlap:] + current_chunk_tokens
+            sliding_chunks.append(tokenizer.decode(combined_chunk))
+
+    return sliding_chunks
 
 def scrape_website(url, max_depth=3, depth=0):
     """
@@ -31,7 +83,10 @@ def scrape_website(url, max_depth=3, depth=0):
         soup = BeautifulSoup(response.text, 'html.parser')
         
         # Collect the main content text of the current page
-        scraped_data = [soup.get_text(separator=' ', strip=True)]
+        page_text = soup.get_text(separator=' ', strip=True)
+        
+        # Chunk the page content to stay within the token limits, using sliding window
+        scraped_data = chunk_text(page_text)
         
         # Find all internal links on the page
         base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))

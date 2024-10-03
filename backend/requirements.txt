@@ -6,3 +6,5 @@ openai
 python-dotenv
 validators
 Flask-CORS
+nltk
+tiktoken
