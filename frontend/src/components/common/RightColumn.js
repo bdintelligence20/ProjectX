@@ -7,19 +7,13 @@ import FullCompanySummary from '../BusinessDevelopmentResearch/FullCompanySummar
 import AnnualReports from '../BusinessDevelopmentResearch/AnnualReports';
 import TopContacts from '../BusinessDevelopmentResearch/TopContacts';
 import HubspotActivity from '../BusinessDevelopmentResearch/HubspotActivity';
-import AddSourcesModalContent from '../modals/AddSourcesModal'; // Import your AddSources modal content
-
-// Sample data for sources
-const sources = [
-  { title: "Telecommunications Industry South Africa", subtitle: "who owns whom.." },
-  { title: "MTN | Shop the Latest Phones & Devices", link: "https://www.mtn.co.za/home/" },
-  { title: "View 87+ more external sources", action: "View All Sources" }
-];
+import AddSourcesModal from '../modals/AddSourcesModal'; // Updated import
 
 export default function RightColumn() {
   const [open, setOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [ModalContent, setModalContent] = useState(null);
+  const [sources, setSources] = useState([]); // Start with an empty array for sources
 
   // Open modal with dynamic content
   const handleOpen = (title, Component) => {
@@ -29,6 +23,14 @@ export default function RightColumn() {
   };
 
   const handleClose = () => setOpen(false);
+
+  // Callback function to handle new sources added from the AddSourcesModal
+  const handleSourceAdded = (newSource) => {
+    setSources((prevSources) => [
+      ...prevSources,
+      newSource // Add the new source to the list
+    ]);
+  };
 
   return (
     <Box 
@@ -47,40 +49,42 @@ export default function RightColumn() {
       {/* Sources Section */}
       <Box padding="10px" mb={2}>
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>Sources</Typography>
-        {sources.map((source, index) => (
-          <Box 
-            key={index} 
-            sx={{ 
-              border: '1px solid #e0e0e0',
-              borderRadius: '10px',
-              padding: '10px',
-              marginBottom: '10px',
-              backgroundColor: '#fff',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            <Box flexGrow={1}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#333' }}>{source.title}</Typography>
-              {source.subtitle && <Typography variant="body2" sx={{ color: '#666' }}>{source.subtitle}</Typography>}
-              {source.link && (
-                <Link href={source.link} underline="hover" sx={{ fontSize: '0.875rem', color: '#0073e6' }}>
-                  {source.link}
-                </Link>
-              )}
-              {source.action && (
-                <Typography variant="body2" sx={{ color: '#0073e6', cursor: 'pointer', fontWeight: 'bold' }}>
-                  {source.action}
-                </Typography>
-              )}
+        {sources.length > 0 ? (
+          sources.map((source, index) => (
+            <Box 
+              key={index} 
+              sx={{ 
+                border: '1px solid #e0e0e0',
+                borderRadius: '10px',
+                padding: '10px',
+                marginBottom: '10px',
+                backgroundColor: '#fff',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <Box flexGrow={1}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#333' }}>{source.title}</Typography>
+                {source.subtitle && <Typography variant="body2" sx={{ color: '#666' }}>{source.subtitle}</Typography>}
+                {source.link && (
+                  <Link href={source.link} underline="hover" sx={{ fontSize: '0.875rem', color: '#0073e6' }}>
+                    {source.link}
+                  </Link>
+                )}
+              </Box>
             </Box>
-          </Box>
-        ))}
+          ))
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            No sources added yet.
+          </Typography>
+        )}
+
         <Box display="flex" alignItems="center">
-          <IconButton color="primary" onClick={() => handleOpen('Add Sources', AddSourcesModalContent)}>
+          <IconButton color="primary" onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={handleSourceAdded} />)}>
             <AddIcon />
           </IconButton>
-          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#0073e6', cursor: 'pointer' }} onClick={() => handleOpen('Add Sources', AddSourcesModalContent)}>
+          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#0073e6', cursor: 'pointer' }} onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={handleSourceAdded} />)}>
             Add Sources
           </Typography>
         </Box>
@@ -103,16 +107,16 @@ export default function RightColumn() {
 
         {/* Link Section */}
         <Box display="flex" flexDirection="column" mt={2}>
-          <Link onClick={() => handleOpen('Full Company Summary', FullCompanySummary)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link onClick={() => handleOpen('Full Company Summary', FullCompanySummary)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb={1}, fontWeight: 'bold', cursor: 'pointer' }}>
             Full Company Summary <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link onClick={() => handleOpen('Annual Reports', AnnualReports)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link onClick={() => handleOpen('Annual Reports', AnnualReports)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb={1}, fontWeight: 'bold', cursor: 'pointer' }}>
             Annual Reports <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link onClick={() => handleOpen('Top Contacts', TopContacts)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link onClick={() => handleOpen('Top Contacts', TopContacts)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb={1}, fontWeight: 'bold', cursor: 'pointer' }}>
             Top Contacts <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link onClick={() => handleOpen('Hubspot Activity', HubspotActivity)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link onClick={() => handleOpen('Hubspot Activity', HubspotActivity)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb={1}, fontWeight: 'bold', cursor: 'pointer' }}>
             Hubspot Activity <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
         </Box>

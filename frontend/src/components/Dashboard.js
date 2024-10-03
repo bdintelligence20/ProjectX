@@ -1,11 +1,15 @@
+// Dashboard.js
 import React, { useState } from 'react';
 import { Box, Typography, Avatar, IconButton } from '@mui/material';
 import Grid from '@mui/material/Grid';  // Correct Grid2 import
 import Sidebar from './common/Sidebar';  // Import the reusable Sidebar component
 import FeedbackIcon from '@mui/icons-material/Feedback';
-import BusinessDevelopmentResearch from './BusinessDevelopmentResearch/BusinessDevelopmentResearch';  // Import the Business Development Research component
-import QATool from './QATool/QATool';  // Import the QA Tool component
-import DataAnalysis from './DataAnalysis/DataAnalysis';  // Import the Data Analysis component
+import BusinessDevelopmentResearch from './BusinessDevelopmentResearch/BusinessDevelopmentResearch';  
+import QATool from './QATool/QATool';  
+import DataAnalysis from './DataAnalysis/DataAnalysis';
+import AddSourcesModal from './modals/AddSourcesModal';  // Import AddSourcesModal
+import RightColumn from './RightColumn';  // Import RightColumn
+import ChatInterface from './ChatInterface';  // Import ChatInterface
 
 // Main Card Data (default view)
 const cards = [
@@ -16,7 +20,8 @@ const cards = [
 ];
 
 export default function Dashboard() {
-  const [activeSection, setActiveSection] = useState('default'); // Ensure initial state is 'default'
+  const [activeSection, setActiveSection] = useState('default');
+  const [sources, setSources] = useState([]);  // Adding sources state to Dashboard
 
   // Function to switch between different views
   const handleSectionClick = (section) => {
@@ -24,7 +29,7 @@ export default function Dashboard() {
   };
 
   return (
-    <Box display="flex" height="100vh">  {/* Ensuring the full height is used */}
+    <Box display="flex" height="100vh">  
       {/* Sidebar with Clickable Navigation */}
       <Sidebar onSectionClick={handleSectionClick} />
 
@@ -42,7 +47,7 @@ export default function Dashboard() {
             {/* Default Card Layout */}
             <Grid container rowSpacing={3} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
               {cards.map((card, index) => (
-                <Grid item xs={6} key={index}> {/* 2 columns on all screen sizes */}
+                <Grid item xs={6} key={index}>
                   <Box
                     sx={{
                       background: 'linear-gradient(45deg, #FF0000, #FF6F00)',
@@ -67,12 +72,15 @@ export default function Dashboard() {
           <BusinessDevelopmentResearch />
         ) : activeSection === 'Quality Assurance' ? (
           <QATool />
-        ) : activeSection === 'Data Analysis' ? (  // Add Data Analysis section here
+        ) : activeSection === 'Data Analysis' ? (
           <DataAnalysis />
         ) : (
           <Box>Other Section Content</Box>
         )}
       </Box>
+
+      {/* Right Column with sources display */}
+      <RightColumn sources={sources} />
 
       {/* Feedback Button */}
       <IconButton 
@@ -81,6 +89,12 @@ export default function Dashboard() {
       >
         <FeedbackIcon />
       </IconButton>
+
+      {/* Add Sources Modal */}
+      <AddSourcesModal sources={sources} setSources={setSources} />
+
+      {/* Chat Interface */}
+      <ChatInterface sources={sources} />
     </Box>
   );
 }
