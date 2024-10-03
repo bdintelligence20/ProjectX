@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Modal, Button, Card, CardContent, Link, IconButton } from '@mui/material';
+import { Box, Typography, Modal, Button, Card, CardContent, IconButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
 const modalStyle = {
@@ -16,7 +16,7 @@ const modalStyle = {
   outline: 'none',
 };
 
-export default function AddSourcesModal({ sources, setSources }) {
+export default function AddSourcesModal({ onSourceAdded }) {
   const [open, setOpen] = useState(false);
   const [activeMethod, setActiveMethod] = useState(null); // Track method of source input
   const [sourceLink, setSourceLink] = useState('');  // Store the website link input
@@ -25,15 +25,18 @@ export default function AddSourcesModal({ sources, setSources }) {
   const handleClose = () => {
     setOpen(false);
     setActiveMethod(null);
+    setSourceLink('');  // Reset input field when modal closes
   };
 
   const handleAddSource = () => {
-    const newSource = {
-      title: `Website: ${sourceLink}`,
-      link: sourceLink,
-    };
-    setSources([...sources, newSource]);
-    handleClose();  // Close modal after adding source
+    if (sourceLink.trim()) {
+      const newSource = {
+        title: `Website: ${sourceLink}`,
+        link: sourceLink,
+      };
+      onSourceAdded(newSource);  // Add new source via the prop function
+      handleClose();  // Close modal after adding source
+    }
   };
 
   const renderContent = () => {
@@ -49,13 +52,19 @@ export default function AddSourcesModal({ sources, setSources }) {
               onChange={(e) => setSourceLink(e.target.value)}
               style={{ padding: '10px', width: '100%' }}
             />
-            <Button variant="contained" sx={{ backgroundColor: '#0073e6', marginTop: '20px' }} onClick={handleAddSource}>
+            <Button
+              variant="contained"
+              sx={{ backgroundColor: '#0073e6', marginTop: '20px' }}
+              onClick={handleAddSource}
+            >
               Submit
             </Button>
-            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>Back</Button>
+            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>
+              Back
+            </Button>
           </>
         );
-      // Handle other types (e.g., text, email, etc.) similarly
+      // Additional methods like text or file upload can be added here later
       default:
         return (
           <>
@@ -73,15 +82,31 @@ export default function AddSourcesModal({ sources, setSources }) {
                 marginBottom: '30px',
               }}
             >
-              <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Upload sources</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>
+                Upload sources
+              </Typography>
             </Box>
             <Box display="flex" justifyContent="space-between" sx={{ marginTop: '20px', gap: '20px' }}>
-              <Card sx={{ border: '1px dashed #e0e0e0', borderRadius: '12px', padding: '20px', flex: '1' }}>
+              <Card
+                sx={{
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  flex: '1',
+                }}
+              >
                 <CardContent sx={{ textAlign: 'center' }}>
                   <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Website</Typography>
-                  <Button onClick={() => setActiveMethod('website')} variant="contained" sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}>Website</Button>
+                  <Button
+                    onClick={() => setActiveMethod('website')}
+                    variant="contained"
+                    sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}
+                  >
+                    Website
+                  </Button>
                 </CardContent>
               </Card>
+              {/* Additional source types (e.g., text, email) can be added here */}
             </Box>
           </>
         );
@@ -94,7 +119,9 @@ export default function AddSourcesModal({ sources, setSources }) {
         <IconButton color="primary">
           <AddIcon />
         </IconButton>
-        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#0073e6' }}>Add Sources</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#0073e6' }}>
+          Add Sources
+        </Typography>
       </Box>
       <Modal open={open} onClose={handleClose}>
         <Box sx={modalStyle}>

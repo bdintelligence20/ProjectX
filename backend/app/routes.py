@@ -3,12 +3,13 @@ from app.scraping import scrape_website
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from flask_cors import cross_origin
+import os
 
 bp = Blueprint('main', __name__)
 
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://your-app-url.com')
 def scrape_and_store():
     data = request.json
     company_url = data.get('companyUrl')
@@ -30,28 +31,56 @@ def scrape_and_store():
 
     return jsonify({"error": "Company URL is required"}), 400
 
-# Handle OPTIONS preflight request for CORS
-@bp.route('/scrape', methods=['OPTIONS'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
-def options():
-    response = make_response()
-    return response
+
+# Handle POST request to add different source types (URLs, PDFs, DOCX, etc.)
+@bp.route('/add-source', methods=['POST'])
+@cross_origin(origins='https://your-app-url.com')
+def add_source():
+    data = request.form
+    file = request.files.get('file')
+    source_type = data.get('sourceType')  # 'text', 'url', 'pdf', 'docx', etc.
+    content = data.get('content')  # For text or URLs
+
+    if file:  # Handle file uploads
+        filename = file.filename
+        filepath = os.path.join('uploads', filename)  # Store the uploaded file
+        file.save(filepath)
+
+        # Process file (e.g., extract text from PDF or DOCX)
+        extracted_text = extract_text_from_file(filepath)  # Custom function to extract text from the file
+        store_in_pinecone(filename, [extracted_text])
+
+        return jsonify({"message": "File uploaded, processed, and stored successfully"}), 200
+
+    elif source_type == 'url':
+        scraped_data = scrape_website(content)  # Treat as website URL
+        if scraped_data:
+            store_in_pinecone(content, scraped_data)
+            return jsonify({"message": "Website scraped and stored successfully"}), 200
+        else:
+            return jsonify({"error": "Failed to scrape the URL"}), 500
+
+    elif source_type == 'text':
+        store_in_pinecone('custom_text_source', [content])
+        return jsonify({"message": "Text content stored successfully"}), 200
+
+    return jsonify({"error": "Invalid source type or content"}), 400
+
 
 # Handle POST request to query data using Pinecone and LLM
 @bp.route('/query', methods=['POST'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://your-app-url.com')
 def query():
     data = request.json
     user_question = data.get('userQuestion')
-    company_url = data.get('companyUrl')
+    sources = data.get('sources')  # Receive all sources added by the user
 
-    if user_question and company_url:
+    if user_question and sources:
         try:
-            # Extract the namespace from the company URL
-            namespace = company_url.split("//")[-1].split("/")[0]
-
-            # Query Pinecone for similar documents
-            matched_texts = query_pinecone(user_question, namespace)
+            matched_texts = []
+            for source in sources:
+                namespace = source['title']  # Assuming 'title' is unique for the source
+                matched_texts.extend(query_pinecone(user_question, namespace))
 
             if matched_texts:
                 # Pass the matched texts and the user's question to the LLM
@@ -62,4 +91,4 @@ def query():
         except Exception as e:
             return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
 
-    return jsonify({"error": "User question and Company URL are required"}), 400
+    return jsonify({"error": "User question and sources are required"}), 400

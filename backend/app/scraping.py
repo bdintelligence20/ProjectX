@@ -11,8 +11,8 @@ nltk.download('punkt')
 # A set to keep track of visited URLs to avoid duplication
 visited_urls = set()
 
-# Initialize tokenizer for handling OpenAI's token limits
-tokenizer = tiktoken.get_encoding("gpt-3.5-turbo")
+## Initialize tokenizer for handling OpenAI's token limits
+tokenizer = tiktoken.get_encoding("cl100k_base")
 
 def chunk_text(text, max_tokens=8192, overlap=100):
     """
