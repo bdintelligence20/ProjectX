@@ -9,7 +9,7 @@ bp = Blueprint('main', __name__)
 
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])
-@cross_origin(origins='https://your-app-url.com')
+@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def scrape_and_store():
     data = request.json
     company_url = data.get('companyUrl')
@@ -34,7 +34,7 @@ def scrape_and_store():
 
 # Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
-@cross_origin(origins='https://your-app-url.com')
+@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def add_source():
     data = request.form
     file = request.files.get('file')
@@ -73,7 +73,7 @@ def add_source():
 
 # Handle POST request to query data using Pinecone and LLM
 @bp.route('/query', methods=['POST'])
-@cross_origin(origins='https://your-app-url.com')
+@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def query():
     data = request.json
     user_question = data.get('userQuestion')
