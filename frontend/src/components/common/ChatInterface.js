@@ -12,12 +12,12 @@ export default function ChatInterface({ sources }) {
       console.log("No sources available to query.");
       return;
     }
-
+  
     if (!chatInput.trim()) {
       console.log("Chat input is empty.");
       return;
     }
-
+  
     console.log("Submitting user query:", chatInput);
     try {
       // Add user input to chat history
@@ -25,25 +25,28 @@ export default function ChatInterface({ sources }) {
         ...prevHistory,
         { role: "user", content: chatInput }
       ]);
-
+  
       // Send the user query and sources to the backend for RAG
       const response = await axios.post('/query', {
         userQuestion: chatInput,
-        sources: sources.map((source) => ({ title: source.link })) // Modify to match backend expectations
+        sources: sources.map((source) => ({
+          title: source.title || `Source from ${source.link}`, // Ensure a title is present
+          link: source.link
+        }))
       });
-
+  
       console.log("Response from backend:", response.data);
-
+  
       // Add LLM response to chat history
       setChatHistory((prevHistory) => [
         ...prevHistory,
         { role: "system", content: response.data.answer }
       ]);
-
+  
       setChatInput('');  // Clear input after submission
     } catch (error) {
       console.error('Error querying:', error);
-
+  
       // Add an error message to the chat history for better user feedback
       setChatHistory((prevHistory) => [
         ...prevHistory,
@@ -51,6 +54,7 @@ export default function ChatInterface({ sources }) {
       ]);
     }
   };
+  
 
   return (
     <Box 

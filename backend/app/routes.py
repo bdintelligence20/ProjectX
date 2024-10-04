@@ -104,7 +104,7 @@ def add_source():
         return jsonify({"error": str(e)}), 500
 
 
-# Handle POST request to query data using Pinecone and LLM
+
 @bp.route('/query', methods=['POST'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def query():
@@ -116,7 +116,10 @@ def query():
         try:
             matched_texts = []
             for source in sources:
-                namespace = source['title']  # Assuming 'title' is unique for the source
+                namespace = source.get('title')  # Use .get() to avoid KeyError if title is missing
+                if not namespace:
+                    logging.warning("Namespace (title) is missing from a source entry.")
+                    continue
                 matched_texts.extend(query_pinecone(user_question, namespace))
 
             if matched_texts:
