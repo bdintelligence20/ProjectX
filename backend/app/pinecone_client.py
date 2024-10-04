@@ -93,12 +93,12 @@ def query_pinecone(user_query, namespace):
         print(f"Pinecone query results: {results}")
 
         # Check if results contain matches
-        if 'matches' not in results or not results['matches']:
-            print("No matches found in Pinecone for the given query.")
+        if 'matches' not in results or not isinstance(results['matches'], list):
+            print("Unexpected response structure:", results)
             return []
 
         # Extract the original text from the metadata of the results
-        matched_texts = [match['metadata']['text'] for match in results['matches'] if 'metadata' in match]
+        matched_texts = [match['metadata']['text'] for match in results['matches'] if 'metadata' in match and 'text' in match['metadata']]
         return matched_texts
 
     except Exception as e:

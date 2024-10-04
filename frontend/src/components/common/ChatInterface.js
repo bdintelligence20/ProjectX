@@ -13,6 +13,11 @@ export default function ChatInterface({ sources }) {
       return;
     }
 
+    if (!chatInput.trim()) {
+      console.log("Chat input is empty.");
+      return;
+    }
+
     console.log("Submitting user query:", chatInput);
     try {
       // Add user input to chat history
@@ -24,7 +29,7 @@ export default function ChatInterface({ sources }) {
       // Send the user query and sources to the backend for RAG
       const response = await axios.post('/query', {
         userQuestion: chatInput,
-        sources: sources.map((source) => source.link)  // Sending source links for querying
+        sources: sources.map((source) => ({ title: source.link })) // Modify to match backend expectations
       });
 
       console.log("Response from backend:", response.data);
@@ -38,6 +43,12 @@ export default function ChatInterface({ sources }) {
       setChatInput('');  // Clear input after submission
     } catch (error) {
       console.error('Error querying:', error);
+
+      // Add an error message to the chat history for better user feedback
+      setChatHistory((prevHistory) => [
+        ...prevHistory,
+        { role: "system", content: "Error occurred while querying. Please try again later." }
+      ]);
     }
   };
 
@@ -90,6 +101,13 @@ export default function ChatInterface({ sources }) {
             ),
           }}
         />
+        <Button
+          variant="contained"
+          sx={{ marginLeft: '10px' }}
+          onClick={handleChatSubmit}
+        >
+          Send
+        </Button>
       </Box>
     </Box>
   );
