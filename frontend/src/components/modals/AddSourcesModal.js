@@ -3,6 +3,9 @@ import { Box, Typography, Modal, Button, Card, CardContent, IconButton } from '@
 import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 
+axios.defaults.baseURL = 'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev';
+
+
 const modalStyle = {
   position: 'absolute',
   top: '50%',
@@ -40,18 +43,27 @@ export default function AddSourcesModal({ onSourceAdded }) {
     if (sourceLink.trim()) {
       try {
         setStatusMessage('Processing website link...');
-
-        const response = await axios.post('/add-source', {
-          sourceType: 'url',
-          content: sourceLink,
-        });
-
+  
+        // Ensure content-type is JSON and data is formatted properly
+        const response = await axios.post(
+          'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev/add-source',
+          {
+            sourceType: 'url',
+            content: sourceLink,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+  
         if (response.status === 200) {
           const newSource = {
             title: `Website: ${sourceLink}`,
             link: sourceLink,
           };
-          onSourceAdded(newSource);  // Add new source via the prop function
+          onSourceAdded(newSource); // Add new source via the prop function
           setStatusMessage('Website link processed successfully!');
           handleClose();
         } else {
@@ -59,9 +71,11 @@ export default function AddSourcesModal({ onSourceAdded }) {
         }
       } catch (error) {
         setStatusMessage('Error processing website link.');
+        console.error("Error:", error);
       }
     }
   };
+  
 
   // Handle file addition
   const handleFileUpload = async () => {

@@ -78,6 +78,9 @@ def query_pinecone(user_query, namespace):
         # Get embedding for the user query
         query_embedding = get_embedding(user_query)
 
+        if query_embedding is None:
+            raise ValueError("Failed to generate embedding for the user query.")
+
         # Query Pinecone for the most similar vectors
         results = index.query(
             vector=query_embedding,
@@ -89,9 +92,16 @@ def query_pinecone(user_query, namespace):
         # Log the Pinecone query results
         print(f"Pinecone query results: {results}")
 
+        # Check if results contain matches
+        if 'matches' not in results or not results['matches']:
+            print("No matches found in Pinecone for the given query.")
+            return []
+
         # Extract the original text from the metadata of the results
         matched_texts = [match['metadata']['text'] for match in results['matches'] if 'metadata' in match]
         return matched_texts
+
     except Exception as e:
         print(f"Error querying Pinecone: {str(e)}")
         return None
+
