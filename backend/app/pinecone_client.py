@@ -33,6 +33,8 @@ def store_in_pinecone(source_id, scraped_data):
     Handles websites, file content (PDF, DOCX, CSV), and text.
     """
     try:
+        namespace = "global_knowledge_base"  # Unified namespace for all knowledge
+
         # Process each chunk of scraped data
         if isinstance(scraped_data, list):
             for i, chunk in enumerate(scraped_data):
@@ -44,16 +46,13 @@ def store_in_pinecone(source_id, scraped_data):
                 if embedding:
                     print(f"Generated embedding for chunk {i} from {source_id} with length: {len(embedding)}")
 
-                    # Use domain or file name as namespace
-                    namespace = source_id.split("//")[-1].split("/")[0] if 'http' in source_id else source_id
-
                     # Create a unique ID for each chunk (e.g., source_id_chunk_i)
                     vector_id = f"{source_id}_chunk_{i}"
 
                     # Include the chunk or summary as metadata
                     metadata = {"text": chunk}
 
-                    # Upsert the embedding with metadata and namespace
+                    # Upsert the embedding with metadata into the unified namespace
                     response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
                     print(f"Pinecone upsert response for chunk {i}: {response}")
                 else:
@@ -62,7 +61,6 @@ def store_in_pinecone(source_id, scraped_data):
             # Handle single chunk scenario (text source, simple file content)
             embedding = get_embedding(scraped_data)
             if embedding:
-                namespace = source_id.split("//")[-1].split("/")[0] if 'http' in source_id else source_id
                 vector_id = source_id
                 metadata = {"text": scraped_data}  # Include the full scraped data as metadata
                 response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
@@ -73,8 +71,10 @@ def store_in_pinecone(source_id, scraped_data):
         print(f"Error storing data in Pinecone: {str(e)}")
 
 
-def query_pinecone(user_query, namespace):
+def query_pinecone(user_query):
     try:
+        namespace = "global_knowledge_base"  # Use the unified namespace for querying
+
         # Get embedding for the user query
         query_embedding = get_embedding(user_query)
 
@@ -84,7 +84,7 @@ def query_pinecone(user_query, namespace):
         # Query Pinecone for the most similar vectors
         results = index.query(
             vector=query_embedding,
-            top_k=5,  # Retrieve the top 5 most relevant vectors
+            top_k=10,  # Retrieve the top 10 most relevant vectors for richer context
             namespace=namespace,
             include_metadata=True  # Ensure the metadata (original text) is included
         )
@@ -104,4 +104,3 @@ def query_pinecone(user_query, namespace):
     except Exception as e:
         print(f"Error querying Pinecone: {str(e)}")
         return None
-

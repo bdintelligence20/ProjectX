@@ -5,6 +5,8 @@ from app.llm import query_llm
 from flask_cors import cross_origin
 import os
 import logging
+from db_utils import insert_source
+from db_utils import get_all_sources
 
 bp = Blueprint('main', __name__)
 
@@ -51,10 +53,12 @@ def add_source():
             data = request.get_json()
             source_type = data.get('sourceType')
             content = data.get('content')
+            title = data.get('title', 'Unnamed Source')
         else:
             data = request.form
             source_type = data.get('sourceType')
             content = data.get('content')
+            title = data.get('title', 'Unnamed Source')
 
         logging.debug(f"Received add source request with data: {data}")
 
@@ -64,7 +68,8 @@ def add_source():
             scraped_data = scrape_website(content)  # Treat as website URL
             if scraped_data:
                 store_in_pinecone(content, scraped_data)
-                return jsonify({"message": "Website scraped and stored successfully"}), 200
+                insert_source(content, 'url', title, scraped_data)
+                return jsonify({"message": "Website scraped, stored in Pinecone, and metadata saved"}), 200
             else:
                 logging.error("Failed to scrape the URL")
                 return jsonify({"error": "Failed to scrape the URL"}), 500
@@ -86,7 +91,8 @@ def add_source():
             if file_type in ['pdf', 'docx', 'csv']:
                 extracted_text = extract_text_from_file(filepath, file_type)  # Custom function to extract text
                 store_in_pinecone(filename, [extracted_text])
-                return jsonify({"message": f"File {filename} uploaded, processed, and stored successfully"}), 200
+                insert_source(filename, file_type, filename, extracted_text)
+                return jsonify({"message": f"File {filename} uploaded, processed, stored in Pinecone, and metadata saved"}), 200
             else:
                 logging.error("Unsupported file type")
                 return jsonify({"error": "Unsupported file type"}), 400
@@ -94,6 +100,7 @@ def add_source():
         elif source_type == 'text' and content:
             logging.debug(f"Storing text content: {content}")
             store_in_pinecone('custom_text_source', [content])
+            insert_source('custom_text_source', 'text', title, content)
             return jsonify({"message": "Text content stored successfully"}), 200
 
         logging.error("Invalid source type or content")
@@ -110,17 +117,11 @@ def add_source():
 def query():
     data = request.json
     user_question = data.get('userQuestion')
-    sources = data.get('sources')  # Receive all sources added by the user
 
-    if user_question and sources:
+    if user_question:
         try:
-            matched_texts = []
-            for source in sources:
-                namespace = source.get('title')  # Use .get() to avoid KeyError if title is missing
-                if not namespace:
-                    logging.warning("Namespace (title) is missing from a source entry.")
-                    continue
-                matched_texts.extend(query_pinecone(user_question, namespace))
+            # Query Pinecone using the unified namespace
+            matched_texts = query_pinecone(user_question)  # Use the updated query_pinecone function
 
             if matched_texts:
                 # Pass the matched texts and the user's question to the LLM
@@ -133,5 +134,24 @@ def query():
             logging.error(f"Failed to query data: {str(e)}")
             return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
 
-    logging.error("User question and sources are required")
-    return jsonify({"error": "User question and sources are required"}), 400
+    logging.error("User question is required")
+    return jsonify({"error": "User question is required"}), 400
+
+
+
+# Handle GET request to retrieve all stored sources
+@bp.route('/sources', methods=['GET'])
+@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+def get_sources():
+    try:
+        sources = get_all_sources()  # Retrieve all stored sources from the database
+
+        if sources:
+            sources_list = [dict(source) for source in sources]  # Convert SQLite Row objects to dictionaries
+            return jsonify(sources_list), 200
+        else:
+            return jsonify({"message": "No sources available"}), 404
+
+    except Exception as e:
+        logging.error(f"Error retrieving sources: {str(e)}")
+        return jsonify({"error": str(e)}), 500
