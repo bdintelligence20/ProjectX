@@ -9,11 +9,28 @@ import TopContacts from '../BusinessDevelopmentResearch/TopContacts';
 import HubspotActivity from '../BusinessDevelopmentResearch/HubspotActivity';
 import AddSourcesModal from '../modals/AddSourcesModal'; // Importing the updated modal
 import SourceLibraryModal from '../modals/SourceLibraryModal'; // Importing the Source Library modal
+import axios from 'axios';
 
-export default function RightColumn({ sources, onSourceAdded }) {
+export default function RightColumn({ onSourceAdded }) {
   const [open, setOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [ModalContent, setModalContent] = useState(null);
+  const [fetchedSources, setFetchedSources] = useState([]);
+
+  // Fetch all sources from the backend on component mount
+  useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        const response = await axios.get('/sources');
+        if (response.status === 200) {
+          setFetchedSources(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching sources:', error);
+      }
+    };
+    fetchSources();
+  }, []);
 
   // Open modal with dynamic content
   const handleOpen = (title, Component) => {
@@ -43,8 +60,8 @@ export default function RightColumn({ sources, onSourceAdded }) {
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
           Sources
         </Typography>
-        {sources.length > 0 ? (
-          sources.map((source, index) => (
+        {fetchedSources.length > 0 ? (
+          fetchedSources.map((source, index) => (
             <Box
               key={index}
               sx={{
@@ -79,7 +96,7 @@ export default function RightColumn({ sources, onSourceAdded }) {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={onSourceAdded} />)}
+            onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={(newSource) => setFetchedSources([...fetchedSources, newSource])} />)}
             sx={{ backgroundColor: '#0073e6', color: '#fff' }}
           >
             Add Sources
@@ -115,16 +132,32 @@ export default function RightColumn({ sources, onSourceAdded }) {
 
         {/* Link Section */}
         <Box display="flex" flexDirection="column" mt={2}>
-          <Link onClick={() => handleOpen('Full Company Summary', FullCompanySummary)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link
+            onClick={() => handleOpen('Full Company Summary', FullCompanySummary)}
+            underline="none"
+            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
+          >
             Full Company Summary <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link onClick={() => handleOpen('Annual Reports', AnnualReports)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link
+            onClick={() => handleOpen('Annual Reports', AnnualReports)}
+            underline="none"
+            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
+          >
             Annual Reports <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link onClick={() => handleOpen('Top Contacts', TopContacts)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link
+            onClick={() => handleOpen('Top Contacts', TopContacts)}
+            underline="none"
+            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
+          >
             Top Contacts <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link onClick={() => handleOpen('Hubspot Activity', HubspotActivity)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
+          <Link
+            onClick={() => handleOpen('Hubspot Activity', HubspotActivity)}
+            underline="none"
+            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
+          >
             Hubspot Activity <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
         </Box>
