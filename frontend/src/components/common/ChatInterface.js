@@ -3,21 +3,16 @@ import { Box, Typography, TextField, InputAdornment, Button } from '@mui/materia
 import SearchIcon from '@mui/icons-material/Search';
 import axios from 'axios';
 
-export default function ChatInterface({ sources }) {
+export default function ChatInterface() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
 
   const handleChatSubmit = async () => {
-    if (!sources.length) {
-      console.log("No sources available to query.");
-      return;
-    }
-  
     if (!chatInput.trim()) {
       console.log("Chat input is empty.");
       return;
     }
-  
+
     console.log("Submitting user query:", chatInput);
     try {
       // Add user input to chat history
@@ -25,28 +20,24 @@ export default function ChatInterface({ sources }) {
         ...prevHistory,
         { role: "user", content: chatInput }
       ]);
-  
-      // Send the user query and sources to the backend for RAG
+
+      // Send the user query to the backend for RAG
       const response = await axios.post('/query', {
-        userQuestion: chatInput,
-        sources: sources.map((source) => ({
-          title: source.title || `Source from ${source.link}`, // Ensure a title is present
-          link: source.link
-        }))
+        userQuestion: chatInput
       });
-  
+
       console.log("Response from backend:", response.data);
-  
+
       // Add LLM response to chat history
       setChatHistory((prevHistory) => [
         ...prevHistory,
         { role: "system", content: response.data.answer }
       ]);
-  
+
       setChatInput('');  // Clear input after submission
     } catch (error) {
       console.error('Error querying:', error);
-  
+
       // Add an error message to the chat history for better user feedback
       setChatHistory((prevHistory) => [
         ...prevHistory,
@@ -54,7 +45,6 @@ export default function ChatInterface({ sources }) {
       ]);
     }
   };
-  
 
   return (
     <Box 

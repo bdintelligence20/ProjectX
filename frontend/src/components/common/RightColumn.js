@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Link, IconButton } from '@mui/material';
+import { Box, Typography, Link, IconButton, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import CustomModal from '../modals/CustomModal';
@@ -8,6 +8,7 @@ import AnnualReports from '../BusinessDevelopmentResearch/AnnualReports';
 import TopContacts from '../BusinessDevelopmentResearch/TopContacts';
 import HubspotActivity from '../BusinessDevelopmentResearch/HubspotActivity';
 import AddSourcesModal from '../modals/AddSourcesModal'; // Importing the updated modal
+import SourceLibraryModal from '../modals/SourceLibraryModal'; // Importing the Source Library modal
 
 export default function RightColumn({ sources, onSourceAdded }) {
   const [open, setOpen] = useState(false);
@@ -34,7 +35,7 @@ export default function RightColumn({ sources, onSourceAdded }) {
         border: '1px solid #e0e0e0',
         borderRadius: '8px',
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)',
-        fontFamily: 'Inter, sans-serif'
+        fontFamily: 'Inter, sans-serif',
       }}
     >
       {/* Sources Section */}
@@ -53,7 +54,7 @@ export default function RightColumn({ sources, onSourceAdded }) {
                 marginBottom: '10px',
                 backgroundColor: '#fff',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
               }}
             >
               <Box flexGrow={1}>
@@ -74,13 +75,22 @@ export default function RightColumn({ sources, onSourceAdded }) {
           </Typography>
         )}
 
-        <Box display="flex" alignItems="center">
-          <IconButton color="primary" onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={onSourceAdded} />)}>
-            <AddIcon />
-          </IconButton>
-          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#0073e6', cursor: 'pointer' }} onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={onSourceAdded} />)}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mt={2}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={onSourceAdded} />)}
+            sx={{ backgroundColor: '#0073e6', color: '#fff' }}
+          >
             Add Sources
-          </Typography>
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => handleOpen('Source Library', SourceLibraryModal)}
+            sx={{ color: '#0073e6', borderColor: '#0073e6' }}
+          >
+            View Source Library
+          </Button>
         </Box>
       </Box>
 
