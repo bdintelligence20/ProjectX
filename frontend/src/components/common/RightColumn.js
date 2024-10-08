@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Link, IconButton, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -7,39 +7,28 @@ import FullCompanySummary from '../BusinessDevelopmentResearch/FullCompanySummar
 import AnnualReports from '../BusinessDevelopmentResearch/AnnualReports';
 import TopContacts from '../BusinessDevelopmentResearch/TopContacts';
 import HubspotActivity from '../BusinessDevelopmentResearch/HubspotActivity';
-import AddSourcesModal from '../modals/AddSourcesModal'; // Importing the updated modal
-import SourceLibraryModal from '../modals/SourceLibraryModal'; // Importing the Source Library modal
-import axios from 'axios';
+import AddSourcesModal from '../modals/AddSourcesModal';
+import SourceLibraryModal from '../modals/SourceLibraryModal';
 
-export default function RightColumn({ onSourceAdded }) {
+export default function RightColumn({ sources, onSourceAdded }) {
+  const [selectedSources, setSelectedSources] = useState(sources);
   const [open, setOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [ModalContent, setModalContent] = useState(null);
-  const [fetchedSources, setFetchedSources] = useState([]);
-
-  // Fetch all sources from the backend on component mount
-  useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        const response = await axios.get('/sources');
-        if (response.status === 200) {
-          setFetchedSources(response.data);
-        }
-      } catch (error) {
-        console.error('Error fetching sources:', error);
-      }
-    };
-    fetchSources();
-  }, []);
 
   // Open modal with dynamic content
   const handleOpen = (title, Component) => {
     setModalTitle(title);
-    setModalContent(<Component />);
+    setModalContent(<Component open={open} onClose={handleClose} onSourcesSelected={handleSourcesSelected} />);
     setOpen(true);
   };
 
   const handleClose = () => setOpen(false);
+
+  // Handle adding selected sources from the library
+  const handleSourcesSelected = (selectedSources) => {
+    setSelectedSources((prevSources) => [...prevSources, ...selectedSources]);
+  };
 
   return (
     <Box
@@ -60,8 +49,8 @@ export default function RightColumn({ onSourceAdded }) {
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
           Sources
         </Typography>
-        {fetchedSources.length > 0 ? (
-          fetchedSources.map((source, index) => (
+        {selectedSources.length > 0 ? (
+          selectedSources.map((source, index) => (
             <Box
               key={index}
               sx={{
@@ -96,7 +85,7 @@ export default function RightColumn({ onSourceAdded }) {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={(newSource) => setFetchedSources([...fetchedSources, newSource])} />)}
+            onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={onSourceAdded} />)}
             sx={{ backgroundColor: '#0073e6', color: '#fff' }}
           >
             Add Sources
@@ -132,32 +121,16 @@ export default function RightColumn({ onSourceAdded }) {
 
         {/* Link Section */}
         <Box display="flex" flexDirection="column" mt={2}>
-          <Link
-            onClick={() => handleOpen('Full Company Summary', FullCompanySummary)}
-            underline="none"
-            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
-          >
+          <Link onClick={() => handleOpen('Full Company Summary', FullCompanySummary)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
             Full Company Summary <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link
-            onClick={() => handleOpen('Annual Reports', AnnualReports)}
-            underline="none"
-            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
-          >
+          <Link onClick={() => handleOpen('Annual Reports', AnnualReports)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
             Annual Reports <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link
-            onClick={() => handleOpen('Top Contacts', TopContacts)}
-            underline="none"
-            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
-          >
+          <Link onClick={() => handleOpen('Top Contacts', TopContacts)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
             Top Contacts <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
-          <Link
-            onClick={() => handleOpen('Hubspot Activity', HubspotActivity)}
-            underline="none"
-            sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}
-          >
+          <Link onClick={() => handleOpen('Hubspot Activity', HubspotActivity)} underline="none" sx={{ display: 'flex', alignItems: 'center', color: '#0073e6', mb: 1, fontWeight: 'bold', cursor: 'pointer' }}>
             Hubspot Activity <ArrowForwardIosIcon fontSize="small" sx={{ ml: 'auto' }} />
           </Link>
         </Box>
