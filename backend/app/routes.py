@@ -143,13 +143,16 @@ def query():
 @bp.route('/sources', methods=['GET'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def get_sources():
+    logging.debug("GET /sources endpoint hit - attempting to retrieve sources")
     try:
         sources = get_all_sources()  # Retrieve all stored sources from the database
 
         if sources:
+            logging.debug(f"Sources retrieved from database: {sources}")
             sources_list = [dict(source) for source in sources]  # Convert SQLite Row objects to dictionaries
             return jsonify(sources_list), 200
         else:
+            logging.info("No sources found in database.")
             return jsonify({"message": "No sources available"}), 404
 
     except Exception as e:

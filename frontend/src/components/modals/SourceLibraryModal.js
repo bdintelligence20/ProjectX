@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Modal, IconButton, CircularProgress } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Box, Typography, Modal, CircularProgress, Checkbox, FormControlLabel, Button } from '@mui/material';
 import axios from 'axios';
+
+axios.defaults.baseURL = 'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev';
 
 const modalStyle = {
   position: 'absolute',
@@ -16,67 +18,106 @@ const modalStyle = {
   outline: 'none',
 };
 
-export default function SourceLibraryModal({ open, handleClose }) {
+export default function SourceLibraryModal({ open, onClose, onSourcesSelected }) {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSources, setSelectedSources] = useState([]);
 
   useEffect(() => {
     if (open) {
+      // Fetch sources when modal is opened
+      const fetchSources = async () => {
+        try {
+          setLoading(true);
+          console.log('Fetching sources from server...');
+          const response = await axios.get('/sources');
+          if (response.status === 200) {
+            console.log('Fetched sources:', response.data);
+            setSources(response.data);
+          } else {
+            console.error('Failed to fetch sources, status code:', response.status);
+          }
+        } catch (error) {
+          console.error('Error fetching sources:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
       fetchSources();
     }
   }, [open]);
 
-  const fetchSources = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/sources');
-      if (response.status === 200) {
-        setSources(response.data);
+  // Handle selecting or deselecting a source
+  const handleSelectSource = (source) => {
+    setSelectedSources((prevSelectedSources) => {
+      if (prevSelectedSources.includes(source)) {
+        return prevSelectedSources.filter((s) => s !== source);
       } else {
-        console.error('Failed to fetch sources');
+        return [...prevSelectedSources, source];
       }
-    } catch (error) {
-      console.error('Error fetching sources:', error);
-    } finally {
-      setLoading(false);
-    }
+    });
+  };
+
+  // Handle adding selected sources
+  const handleAddSelectedSources = () => {
+    console.log('Selected sources to add:', selectedSources);
+    onSourcesSelected(selectedSources);
+    onClose();
   };
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal open={open} onClose={onClose}>
       <Box sx={modalStyle}>
         <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
           Source Library
         </Typography>
         {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-            <CircularProgress />
-          </Box>
+          <CircularProgress />
         ) : sources.length > 0 ? (
-          sources.map((source, index) => (
-            <Box
-              key={index}
-              sx={{
-                border: '1px solid #e0e0e0',
-                borderRadius: '10px',
-                padding: '10px',
-                marginBottom: '10px',
-                backgroundColor: '#fff',
-              }}
+          <Box>
+            {sources.map((source, index) => (
+              <Box
+                key={index}
+                sx={{
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  marginBottom: '10px',
+                  backgroundColor: '#fff',
+                }}
+              >
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedSources.includes(source)}
+                      onChange={() => handleSelectSource(source)}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#333' }}>
+                        {source.title}
+                      </Typography>
+                      {source.source_type === 'url' && source.content && (
+                        <Typography variant="body2" sx={{ color: '#0073e6' }}>
+                          {source.content}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                />
+              </Box>
+            ))}
+            <Button
+              variant="contained"
+              onClick={handleAddSelectedSources}
+              sx={{ marginTop: '20px', backgroundColor: '#0073e6' }}
+              disabled={selectedSources.length === 0}
             >
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#333' }}>
-                {source.title}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {source.source_type}
-              </Typography>
-              {source.content && (
-                <Typography variant="body2" sx={{ marginTop: '10px', color: '#666' }}>
-                  {source.content.substring(0, 100)}...
-                </Typography>
-              )}
-            </Box>
-          ))
+              Add Selected Sources
+            </Button>
+          </Box>
         ) : (
           <Typography variant="body2" color="textSecondary">
             No sources available.
