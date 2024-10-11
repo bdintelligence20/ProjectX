@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, InputAdornment, Button } from '@mui/material';
+import { Box, Typography, TextField, InputAdornment, Button, FormControl, Select, MenuItem } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import axios from 'axios';
 
 export default function ChatInterface() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
+  const [searchScope, setSearchScope] = useState('chosen'); // Default to "Search Chosen Sources"
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim()) {
@@ -21,9 +22,10 @@ export default function ChatInterface() {
         { role: "user", content: chatInput }
       ]);
 
-      // Send the user query to the backend for RAG
+      // Send the user query to the backend for RAG, including the searchScope
       const response = await axios.post('/query', {
-        userQuestion: chatInput
+        userQuestion: chatInput,
+        searchScope: searchScope,  // Include search scope in the request payload
       });
 
       console.log("Response from backend:", response.data);
@@ -47,11 +49,11 @@ export default function ChatInterface() {
   };
 
   return (
-    <Box 
-      flex={1} 
-      display="flex" 
-      flexDirection="column" 
-      height="100vh"  
+    <Box
+      flex={1}
+      display="flex"
+      flexDirection="column"
+      height="100vh"
       backgroundColor="#fafafa"
     >
       {/* Chat history display */}
@@ -74,6 +76,20 @@ export default function ChatInterface() {
             </Box>
           ))}
         </Box>
+      </Box>
+
+      {/* Search scope selection */}
+      <Box p={2}>
+        <FormControl fullWidth variant="outlined">
+          <Select
+            value={searchScope}
+            onChange={(e) => setSearchScope(e.target.value)}
+            displayEmpty
+          >
+            <MenuItem value="chosen">Search Chosen Sources</MenuItem>
+            <MenuItem value="whole">Search Whole Library</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       {/* Chat input field */}

@@ -71,10 +71,8 @@ def store_in_pinecone(source_id, scraped_data):
         print(f"Error storing data in Pinecone: {str(e)}")
 
 
-def query_pinecone(user_query):
+def query_pinecone(user_query, namespace="global_knowledge_base", ids=None):
     try:
-        namespace = "global_knowledge_base"  # Use the unified namespace for querying
-
         # Get embedding for the user query
         query_embedding = get_embedding(user_query)
 
@@ -82,12 +80,16 @@ def query_pinecone(user_query):
             raise ValueError("Failed to generate embedding for the user query.")
 
         # Query Pinecone for the most similar vectors
-        results = index.query(
-            vector=query_embedding,
-            top_k=10,  # Retrieve the top 10 most relevant vectors for richer context
-            namespace=namespace,
-            include_metadata=True  # Ensure the metadata (original text) is included
-        )
+        if ids:
+            # Filter results to only the specific IDs provided
+            results = index.fetch(ids, namespace=namespace)
+        else:
+            results = index.query(
+                vector=query_embedding,
+                top_k=10,  # Retrieve the top 10 most relevant vectors for richer context
+                namespace=namespace,
+                include_metadata=True  # Ensure the metadata (original text) is included
+            )
 
         # Log the Pinecone query results
         print(f"Pinecone query results: {results}")

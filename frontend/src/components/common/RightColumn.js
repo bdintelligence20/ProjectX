@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Box, Typography, Link, IconButton, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import CloseIcon from '@mui/icons-material/Close';
 import CustomModal from '../modals/CustomModal';
 import FullCompanySummary from '../BusinessDevelopmentResearch/FullCompanySummary';
 import AnnualReports from '../BusinessDevelopmentResearch/AnnualReports';
@@ -16,18 +17,31 @@ export default function RightColumn({ sources, onSourceAdded }) {
   const [modalTitle, setModalTitle] = useState('');
   const [ModalContent, setModalContent] = useState(null);
 
-  // Open modal with dynamic content
+  // Correct handleOpen for dynamic modal content
   const handleOpen = (title, Component) => {
     setModalTitle(title);
-    setModalContent(<Component open={open} onClose={handleClose} onSourcesSelected={handleSourcesSelected} />);
     setOpen(true);
+    setModalContent(
+      <Component
+        open={true}
+        onClose={handleClose}
+        onSourcesSelected={handleSourcesSelected}
+      />
+    );
   };
 
   const handleClose = () => setOpen(false);
 
   // Handle adding selected sources from the library
-  const handleSourcesSelected = (selectedSources) => {
-    setSelectedSources((prevSources) => [...prevSources, ...selectedSources]);
+  const handleSourcesSelected = (newSources) => {
+    setSelectedSources((prevSources) => [...prevSources, ...newSources]);
+  };
+
+  // Handle removing a source from the right column (not the library)
+  const handleRemoveSource = (sourceToRemove) => {
+    setSelectedSources((prevSources) =>
+      prevSources.filter((source) => source.id !== sourceToRemove.id)
+    );
   };
 
   return (
@@ -73,6 +87,12 @@ export default function RightColumn({ sources, onSourceAdded }) {
                   </Link>
                 )}
               </Box>
+              <IconButton
+                onClick={() => handleRemoveSource(source)}
+                sx={{ color: '#e53935' }}
+              >
+                <CloseIcon />
+              </IconButton>
             </Box>
           ))
         ) : (
@@ -92,7 +112,10 @@ export default function RightColumn({ sources, onSourceAdded }) {
           </Button>
           <Button
             variant="outlined"
-            onClick={() => handleOpen('Source Library', SourceLibraryModal)}
+            onClick={() => {
+              console.log("View Source Library button clicked");
+              handleOpen('Source Library', SourceLibraryModal);
+            }}
             sx={{ color: '#0073e6', borderColor: '#0073e6' }}
           >
             View Source Library
