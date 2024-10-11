@@ -3,7 +3,7 @@ import { Box, Typography, TextField, InputAdornment, Button, FormControl, Select
 import SearchIcon from '@mui/icons-material/Search';
 import axios from 'axios';
 
-export default function ChatInterface() {
+export default function ChatInterface({ selectedSources }) {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [searchScope, setSearchScope] = useState('chosen'); // Default to "Search Chosen Sources"
@@ -22,11 +22,15 @@ export default function ChatInterface() {
         { role: "user", content: chatInput }
       ]);
 
-      // Send the user query to the backend for RAG, including the searchScope
-      const response = await axios.post('/query', {
+      // Prepare the request payload
+      const payload = {
         userQuestion: chatInput,
-        searchScope: searchScope,  // Include search scope in the request payload
-      });
+        searchScope: searchScope,
+        selectedSources: searchScope === 'chosen' ? selectedSources : null
+      };
+
+      // Send the user query to the backend for RAG, including the searchScope and selected sources
+      const response = await axios.post('/query', payload);
 
       console.log("Response from backend:", response.data);
 
@@ -36,7 +40,7 @@ export default function ChatInterface() {
         { role: "system", content: response.data.answer }
       ]);
 
-      setChatInput('');  // Clear input after submission
+      setChatInput(''); // Clear input after submission
     } catch (error) {
       console.error('Error querying:', error);
 

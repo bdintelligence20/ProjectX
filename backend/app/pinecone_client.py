@@ -79,11 +79,20 @@ def query_pinecone(user_query, namespace="global_knowledge_base", ids=None):
         if query_embedding is None:
             raise ValueError("Failed to generate embedding for the user query.")
 
-        # Query Pinecone for the most similar vectors
+        # Check if specific IDs are provided
         if ids:
-            # Filter results to only the specific IDs provided
-            results = index.fetch(ids, namespace=namespace)
+            # Fetch vectors based on IDs from the global namespace
+            results = index.fetch(ids=ids, namespace=namespace)
+
+            # Ensure the response has a proper structure
+            if 'vectors' in results:
+                matched_texts = [vector_data['metadata']['text'] for vector_id, vector_data in results['vectors'].items() if 'metadata' in vector_data and 'text' in vector_data['metadata']]
+                return matched_texts
+            else:
+                print("Unexpected response structure while fetching by IDs:", results)
+                return []
         else:
+            # Query Pinecone for the most similar vectors using the query embedding
             results = index.query(
                 vector=query_embedding,
                 top_k=10,  # Retrieve the top 10 most relevant vectors for richer context
@@ -91,17 +100,17 @@ def query_pinecone(user_query, namespace="global_knowledge_base", ids=None):
                 include_metadata=True  # Ensure the metadata (original text) is included
             )
 
-        # Log the Pinecone query results
-        print(f"Pinecone query results: {results}")
+            # Log the Pinecone query results
+            print(f"Pinecone query results: {results}")
 
-        # Check if results contain matches
-        if 'matches' not in results or not isinstance(results['matches'], list):
-            print("Unexpected response structure:", results)
-            return []
+            # Check if results contain matches
+            if 'matches' not in results or not isinstance(results['matches'], list):
+                print("Unexpected response structure:", results)
+                return []
 
-        # Extract the original text from the metadata of the results
-        matched_texts = [match['metadata']['text'] for match in results['matches'] if 'metadata' in match and 'text' in match['metadata']]
-        return matched_texts
+            # Extract the original text from the metadata of the results
+            matched_texts = [match['metadata']['text'] for match in results['matches'] if 'metadata' in match and 'text' in match['metadata']]
+            return matched_texts
 
     except Exception as e:
         print(f"Error querying Pinecone: {str(e)}")
