@@ -25,7 +25,6 @@ export default function SourceLibraryModal({ open, onClose, onSourcesSelected })
 
   useEffect(() => {
     if (open) {
-      // Fetch sources when modal is opened
       const fetchSources = async () => {
         try {
           setLoading(true);
@@ -43,10 +42,11 @@ export default function SourceLibraryModal({ open, onClose, onSourcesSelected })
           setLoading(false);
         }
       };
-
+  
       fetchSources();
     }
   }, [open]);
+  
 
   // Handle selecting or deselecting a source
   const handleSelectSource = (source) => {
