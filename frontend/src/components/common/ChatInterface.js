@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, InputAdornment, Button, FormControl, Select, MenuItem } from '@mui/material';
+import { Box, Typography, TextField, InputAdornment, Button } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import axios from 'axios';
 
-export default function ChatInterface({ selectedSources }) {
+export default function ChatInterface() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
-  const [searchScope, setSearchScope] = useState('chosen'); // Default to "Search Chosen Sources"
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim()) {
@@ -25,11 +24,10 @@ export default function ChatInterface({ selectedSources }) {
       // Prepare the request payload
       const payload = {
         userQuestion: chatInput,
-        searchScope: searchScope,
-        selectedSources: searchScope === 'chosen' ? selectedSources : null
+        searchScope: "whole", // Default to querying the entire global knowledge base
       };
 
-      // Send the user query to the backend for RAG, including the searchScope and selected sources
+      // Send the user query to the backend for RAG
       const response = await axios.post('/query', payload);
 
       console.log("Response from backend:", response.data);
@@ -80,20 +78,6 @@ export default function ChatInterface({ selectedSources }) {
             </Box>
           ))}
         </Box>
-      </Box>
-
-      {/* Search scope selection */}
-      <Box p={2}>
-        <FormControl fullWidth variant="outlined">
-          <Select
-            value={searchScope}
-            onChange={(e) => setSearchScope(e.target.value)}
-            displayEmpty
-          >
-            <MenuItem value="chosen">Search Chosen Sources</MenuItem>
-            <MenuItem value="whole">Search Whole Library</MenuItem>
-          </Select>
-        </FormControl>
       </Box>
 
       {/* Chat input field */}
