@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Box, Typography, Link, IconButton, Button } from '@mui/material';
+import { Box, Typography, Link, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-import CloseIcon from '@mui/icons-material/Close';
 import CustomModal from '../modals/CustomModal';
 import FullCompanySummary from '../BusinessDevelopmentResearch/FullCompanySummary';
 import AnnualReports from '../BusinessDevelopmentResearch/AnnualReports';
@@ -11,13 +10,11 @@ import HubspotActivity from '../BusinessDevelopmentResearch/HubspotActivity';
 import AddSourcesModal from '../modals/AddSourcesModal';
 import SourceLibraryModal from '../modals/SourceLibraryModal';
 
-export default function RightColumn({ sources, onSourceAdded }) {
-  const [selectedSources, setSelectedSources] = useState(sources);
+export default function RightColumn({ onSourceAdded }) {
   const [open, setOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [ModalContent, setModalContent] = useState(null);
 
-  // Correct handleOpen for dynamic modal content
   const handleOpen = (title, Component) => {
     setModalTitle(title);
     setOpen(true);
@@ -25,24 +22,11 @@ export default function RightColumn({ sources, onSourceAdded }) {
       <Component
         open={true}
         onClose={handleClose}
-        onSourcesSelected={handleSourcesSelected}
       />
     );
   };
 
   const handleClose = () => setOpen(false);
-
-  // Handle adding selected sources from the library
-  const handleSourcesSelected = (newSources) => {
-    setSelectedSources((prevSources) => [...prevSources, ...newSources]);
-  };
-
-  // Handle removing a source from the right column (not the library)
-  const handleRemoveSource = (sourceToRemove) => {
-    setSelectedSources((prevSources) =>
-      prevSources.filter((source) => source.id !== sourceToRemove.id)
-    );
-  };
 
   return (
     <Box
@@ -58,49 +42,8 @@ export default function RightColumn({ sources, onSourceAdded }) {
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      {/* Sources Section */}
+      {/* Add and View Sources Section */}
       <Box padding="10px" mb={2}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
-          Sources
-        </Typography>
-        {selectedSources.length > 0 ? (
-          selectedSources.map((source, index) => (
-            <Box
-              key={index}
-              sx={{
-                border: '1px solid #e0e0e0',
-                borderRadius: '10px',
-                padding: '10px',
-                marginBottom: '10px',
-                backgroundColor: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <Box flexGrow={1}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#333' }}>
-                  {source.title}
-                </Typography>
-                {source.link && (
-                  <Link href={source.link} underline="hover" sx={{ fontSize: '0.875rem', color: '#0073e6' }}>
-                    {source.link}
-                  </Link>
-                )}
-              </Box>
-              <IconButton
-                onClick={() => handleRemoveSource(source)}
-                sx={{ color: '#e53935' }}
-              >
-                <CloseIcon />
-              </IconButton>
-            </Box>
-          ))
-        ) : (
-          <Typography variant="body2" color="textSecondary">
-            No sources added yet.
-          </Typography>
-        )}
-
         <Box display="flex" alignItems="center" justifyContent="space-between" mt={2}>
           <Button
             variant="contained"
@@ -112,10 +55,7 @@ export default function RightColumn({ sources, onSourceAdded }) {
           </Button>
           <Button
             variant="outlined"
-            onClick={() => {
-              console.log("View Source Library button clicked");
-              handleOpen('Source Library', SourceLibraryModal);
-            }}
+            onClick={() => handleOpen('Source Library', SourceLibraryModal)}
             sx={{ color: '#0073e6', borderColor: '#0073e6' }}
           >
             View Source Library

@@ -1,12 +1,11 @@
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from flask_cors import cross_origin
 import os
 import logging
-from db_utils import insert_source
-from db_utils import get_all_sources
+from db_utils import insert_source, get_all_sources
 
 bp = Blueprint('main', __name__)
 
@@ -41,7 +40,6 @@ def scrape_and_store():
 
     logging.error("Company URL is required")
     return jsonify({"error": "Company URL is required"}), 400
-
 
 # Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
@@ -110,30 +108,20 @@ def add_source():
         logging.error(f"Error in add_source: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
-
+# Handle POST request to query the unified namespace in Pinecone
 @bp.route('/query', methods=['POST'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def query():
     data = request.json
     user_question = data.get('userQuestion')
-    search_scope = data.get('searchScope', 'chosen')  # Default to "chosen" if not provided
-    selected_sources = data.get('selectedSources', [])
 
     if not user_question:
         logging.error("User question is required")
         return jsonify({"error": "User question is required"}), 400
 
     try:
-        if search_scope == 'whole':
-            # Query the whole vector database (global knowledge base)
-            matched_texts = query_pinecone(user_question, namespace="global_knowledge_base")
-        elif search_scope == 'chosen' and selected_sources:
-            # Query only using the chosen source IDs
-            matched_texts = query_pinecone(user_query=user_question, namespace="global_knowledge_base", ids=selected_sources)
-        else:
-            logging.info("No selected sources provided or invalid search scope.")
-            return jsonify({"answer": "No sources were selected or the search scope was invalid."}), 400
+        # Query the whole vector database (global knowledge base)
+        matched_texts = query_pinecone(user_question, namespace="global_knowledge_base")
 
         if matched_texts:
             # Pass the matched texts and the user's question to the LLM
@@ -151,8 +139,6 @@ def query():
     except Exception as e:
         logging.error(f"Failed to query data: {str(e)}")
         return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
-
-
 
 # Handle GET request to retrieve all stored sources
 @bp.route('/sources', methods=['GET'])
