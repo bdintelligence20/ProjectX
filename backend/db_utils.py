@@ -1,10 +1,58 @@
-# db_utils.py
-
 import sqlite3
-from app import db, create_app
-from app.models import User
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Existing SQLite functions
+# Setup SQLAlchemy Base and Engine for use in the application
+Base = declarative_base()
+engine = create_engine('sqlite:///users.db')
+SessionLocal = sessionmaker(bind=engine)
+
+# Define the User model
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(150), nullable=False, unique=True)
+    email = Column(String(150), nullable=False, unique=True)
+    name = Column(String(150), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+
+    def set_password(self, password):
+        import bcrypt
+        self.hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    def check_password(self, password):
+        import bcrypt
+        return bcrypt.checkpw(password.encode('utf-8'), self.hashed_password.encode('utf-8'))
+
+    def __repr__(self):
+        return f"<User {self.username}>"
+
+# Create all tables
+Base.metadata.create_all(engine)
+
+# Functions for managing user data via SQLAlchemy
+def create_user(username, email, name, password):
+    session = SessionLocal()
+    try:
+        user = User(username=username, email=email, name=name)
+        user.set_password(password)
+        session.add(user)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+def get_user_by_username_or_email(identifier):
+    session = SessionLocal()
+    try:
+        return session.query(User).filter((User.username == identifier) | (User.email == identifier)).first()
+    finally:
+        session.close()
+
+# SQLite-specific functions for the Sources database
 def get_db_connection():
     conn = sqlite3.connect('sources.db')
     conn.row_factory = sqlite3.Row
@@ -41,11 +89,3 @@ def get_all_sources():
     conn.close()
     return sources
 
-# New SQLAlchemy-based functions for users table
-def initialize_db():
-    app = create_app()
-    with app.app_context():
-        # Create all tables defined in the SQLAlchemy models (User table)
-        db.create_all()
-
-# Usage of initialize_db should happen during app initialization or explicitly

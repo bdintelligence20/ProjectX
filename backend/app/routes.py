@@ -1,17 +1,13 @@
-# routes.py
-
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from flask_cors import cross_origin
-import os
 import logging
-from db_utils import insert_source, get_all_sources
-from app import bcrypt, db
-from app.models import User
 import traceback
+from db_utils import SessionLocal, User
+from sqlalchemy import select
 
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG)
@@ -29,29 +25,36 @@ def register():
     try:
         data = request.json
         username = data.get('username')
+        email = data.get('email')
+        name = data.get('name')
         password = data.get('password')
 
-        logging.debug(f"Received registration data: username={username}")
+        logging.debug(f"Received registration data: username={username}, email={email}, name={name}")
 
-        if not username or not password:
-            logging.error("Username and password are required for registration")
-            return jsonify({"error": "Username and password are required"}), 400
+        if not username or not email or not name or not password:
+            logging.error("Username, email, name, and password are required for registration")
+            return jsonify({"error": "All fields are required"}), 400
+
+        session = SessionLocal()
 
         # Check if the user already exists
-        existing_user = User.query.filter_by(username=username).first()
+        existing_user = session.execute(select(User).filter((User.username == username) | (User.email == email))).scalar_one_or_none()
         if existing_user:
-            logging.error(f"User with username '{username}' already exists")
-            return jsonify({"error": "Username already exists"}), 409
+            logging.error(f"User with username '{username}' or email '{email}' already exists")
+            return jsonify({"error": "Username or email already exists"}), 409
 
-        # Create a new user with hashed password
-        new_user = User(username=username)
+        # Create a new user
+        new_user = User(username=username, email=email, name=name)
         new_user.set_password(password)
 
         # Debug log to confirm the user creation process
         logging.debug(f"Creating new user: username={username}")
 
-        db.session.add(new_user)
-        db.session.commit()
+        session.add(new_user)
+        logging.debug("User added to session")
+        session.commit()
+        logging.debug("Database commit successful")
+        session.close()
 
         logging.info(f"User registered successfully: username={username}")
         return jsonify({"message": "User registered successfully"}), 201
@@ -60,29 +63,46 @@ def register():
         logging.error(f"Internal server error: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
+# Handle user login
 @bp.route('/auth/login', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def login():
     if request.method == 'OPTIONS':
+        logging.debug("Preflight check passed for login")
         return jsonify({"message": "Preflight check passed"}), 200
 
     try:
         data = request.json
-        username = data.get('username')
+        identifier = data.get('identifier')
         password = data.get('password')
 
-        user = User.query.filter_by(username=username).first()
-        if user and user.check_password(password):  # Use check_password method here
+        logging.debug(f"Received login data: identifier={identifier}")
+
+        if not identifier or not password:
+            logging.error("Identifier and password are required for login")
+            return jsonify({"error": "Identifier and password are required"}), 400
+
+        # Use SQLAlchemy session to find user by username or email
+        session = SessionLocal()
+
+        user = session.query(User).filter(
+            (User.username == identifier) | (User.email == identifier)
+        ).first()
+
+        if user and user.check_password(password):
             # Create a JWT access token for the user
-            access_token = create_access_token(identity=user.id)
+            access_token = create_access_token(identity={'username': user.username})
+            session.close()
+            logging.info(f"User logged in successfully: identifier={identifier}")
             return jsonify(access_token=access_token), 200
 
-        return jsonify({"error": "Invalid username or password"}), 401
+        logging.error(f"Invalid credentials for identifier: {identifier}")
+        session.close()
+        return jsonify({"error": "Invalid identifier or password"}), 401
+
     except Exception as e:
+        logging.error(f"Internal server error: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
-
-
-# Protect other routes using @jwt_required
 
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])

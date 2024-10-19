@@ -1,16 +1,40 @@
-# run.py
+from db_utils import create_sources_table, engine, Base  # Import functions and database setup
 
-from app import create_app, db
-from db_utils import create_sources_table  # Import the function to create the source table
+# Flask application
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
+from flask_cors import CORS
+from dotenv import load_dotenv
+import os
 
-app = create_app()
+# Load environment variables
+load_dotenv()
 
+# Set up Flask app
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+app.secret_key = os.getenv('SECRET_KEY')
+
+# Set up extensions
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
+CORS(app, resources={r"/auth/*": {"origins": "https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev"}})
+
+# Create tables for users.db
 with app.app_context():
-    # Initialize the database tables (create if not exists)
     print("Creating all database tables...")
-    db.create_all()
+    Base.metadata.create_all(engine)
     create_sources_table()
     print("Database tables created successfully.")
+
+# Register blueprints for routes
+from app.routes import bp
+app.register_blueprint(bp)
 
 if __name__ == "__main__":
     app.run(debug=True)
