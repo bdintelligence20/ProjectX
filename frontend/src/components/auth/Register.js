@@ -1,4 +1,3 @@
-// src/components/auth/Register.js
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { TextField, Button, Box, Typography } from '@mui/material';
@@ -7,6 +6,8 @@ import AuthContext from '../../AuthContext'; // Import AuthContext
 const Register = () => {
   const { login } = useContext(AuthContext);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ const Register = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, email, name, password }),
       });
 
       const data = await response.json();
@@ -42,6 +43,18 @@ const Register = () => {
         label="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
+        margin="normal"
+      />
+      <TextField
+        label="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        margin="normal"
+      />
+      <TextField
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
         margin="normal"
       />
       <TextField

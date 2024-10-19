@@ -33,7 +33,7 @@ def create_app():
     CORS(app, resources={r"/auth/*": {"origins": "https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev"}})
 
     # Import routes here to avoid circular imports
-    from .auth_routes import auth_bp
-    app.register_blueprint(auth_bp)
+    from .routes import bp
+    app.register_blueprint(bp)
 
     return app
