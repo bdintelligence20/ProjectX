@@ -1,5 +1,3 @@
-# app/__init__.py
-
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -20,7 +18,8 @@ def create_app():
     app = Flask(__name__)
 
     # Set up configurations
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+    db_path = os.path.join(os.getcwd(), 'users.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Load JWT secret key from environment variables
     app.secret_key = os.getenv('SECRET_KEY')  # Load Flask secret key from environment variables for sessions

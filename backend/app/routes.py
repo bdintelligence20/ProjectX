@@ -11,17 +11,19 @@ import logging
 from db_utils import insert_source, get_all_sources
 from app import bcrypt, db
 from app.models import User
+import traceback
+
+# Configure logging to show all debug messages
+logging.basicConfig(level=logging.DEBUG)
 
 bp = Blueprint('main', __name__)
-
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
 
 # Handle user registration
 @bp.route('/auth/register', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def register():
     if request.method == 'OPTIONS':
+        logging.debug("Preflight check passed for registration")
         return jsonify({"message": "Preflight check passed"}), 200
 
     try:
@@ -29,24 +31,34 @@ def register():
         username = data.get('username')
         password = data.get('password')
 
+        logging.debug(f"Received registration data: username={username}")
+
         if not username or not password:
+            logging.error("Username and password are required for registration")
             return jsonify({"error": "Username and password are required"}), 400
 
-        # Check if user already exists
+        # Check if the user already exists
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
+            logging.error(f"User with username '{username}' already exists")
             return jsonify({"error": "Username already exists"}), 409
 
-        # Create a new user
+        # Create a new user with hashed password
         new_user = User(username=username)
-        new_user.set_password(password)  # Use the set_password method to hash the password
+        new_user.set_password(password)
+
+        # Debug log to confirm the user creation process
+        logging.debug(f"Creating new user: username={username}")
+
         db.session.add(new_user)
         db.session.commit()
 
+        logging.info(f"User registered successfully: username={username}")
         return jsonify({"message": "User registered successfully"}), 201
-    except Exception as e:
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
+    except Exception as e:
+        logging.error(f"Internal server error: {traceback.format_exc()}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 @bp.route('/auth/login', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
