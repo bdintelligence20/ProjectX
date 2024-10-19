@@ -1,4 +1,7 @@
+# routes.py
+
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
@@ -6,16 +9,76 @@ from flask_cors import cross_origin
 import os
 import logging
 from db_utils import insert_source, get_all_sources
+from app import bcrypt, db
+from app.models import User
 
 bp = Blueprint('main', __name__)
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
+# Handle user registration
+@bp.route('/auth/register', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+def register():
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "Preflight check passed"}), 200
+
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+
+        # Check if user already exists
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            return jsonify({"error": "Username already exists"}), 409
+
+        # Create a new user
+        new_user = User(username=username)
+        new_user.set_password(password)  # Use the set_password method to hash the password
+        db.session.add(new_user)
+        db.session.commit()
+
+        return jsonify({"message": "User registered successfully"}), 201
+    except Exception as e:
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+@bp.route('/auth/login', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+def login():
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "Preflight check passed"}), 200
+
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):  # Use check_password method here
+            # Create a JWT access token for the user
+            access_token = create_access_token(identity=user.id)
+            return jsonify(access_token=access_token), 200
+
+        return jsonify({"error": "Invalid username or password"}), 401
+    except Exception as e:
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+# Protect other routes using @jwt_required
+
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])
+@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def scrape_and_store():
+    current_user_id = get_jwt_identity()  # Get the current user from JWT
+    logging.debug(f"User {current_user_id} is scraping a website.")
     data = request.json
     company_url = data.get('companyUrl')
 
@@ -43,8 +106,11 @@ def scrape_and_store():
 
 # Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
+@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def add_source():
+    current_user_id = get_jwt_identity()  # Get the current user from JWT
+    logging.debug(f"User {current_user_id} is adding a source.")
     try:
         # Handle different content types
         if request.is_json:
@@ -110,8 +176,11 @@ def add_source():
 
 # Handle POST request to query the unified namespace in Pinecone
 @bp.route('/query', methods=['POST'])
+@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def query():
+    current_user_id = get_jwt_identity()  # Get the current user from JWT
+    logging.debug(f"User {current_user_id} is querying the knowledge base.")
     data = request.json
     user_question = data.get('userQuestion')
 
@@ -142,9 +211,11 @@ def query():
 
 # Handle GET request to retrieve all stored sources
 @bp.route('/sources', methods=['GET'])
+@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def get_sources():
-    logging.debug("GET /sources endpoint hit - attempting to retrieve sources")
+    current_user_id = get_jwt_identity()  # Get the current user from JWT
+    logging.debug(f"User {current_user_id} is retrieving all sources.")
     try:
         sources = get_all_sources()  # Retrieve all stored sources from the database
 

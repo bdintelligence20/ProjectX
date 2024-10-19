@@ -1,6 +1,10 @@
 # db_utils.py
-import sqlite3
 
+import sqlite3
+from app import db, create_app
+from app.models import User
+
+# Existing SQLite functions
 def get_db_connection():
     conn = sqlite3.connect('sources.db')
     conn.row_factory = sqlite3.Row
@@ -36,3 +40,12 @@ def get_all_sources():
     sources = conn.execute('SELECT * FROM Sources').fetchall()
     conn.close()
     return sources
+
+# New SQLAlchemy-based functions for users table
+def initialize_db():
+    app = create_app()
+    with app.app_context():
+        # Create all tables defined in the SQLAlchemy models (User table)
+        db.create_all()
+
+# Usage of initialize_db should happen during app initialization or explicitly
