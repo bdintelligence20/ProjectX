@@ -1,20 +1,26 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from flask_cors import cross_origin
+from werkzeug.utils import secure_filename
 import logging
 import traceback
-from db_utils import SessionLocal, User
 from sqlalchemy import select
+import os
+from supabase import create_client, Client
 
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG)
 
+# Initialize Supabase client
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
+
 bp = Blueprint('main', __name__)
 
-# Handle user registration
+# Handle user registration with Supabase
 @bp.route('/auth/register', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def register():
@@ -24,46 +30,32 @@ def register():
 
     try:
         data = request.json
-        username = data.get('username')
         email = data.get('email')
-        name = data.get('name')
         password = data.get('password')
 
-        logging.debug(f"Received registration data: username={username}, email={email}, name={name}")
+        if not email or not password:
+            logging.error("Email and password are required for registration")
+            return jsonify({"error": "Email and password are required"}), 400
 
-        if not username or not email or not name or not password:
-            logging.error("Username, email, name, and password are required for registration")
-            return jsonify({"error": "All fields are required"}), 400
+        # Register user via Supabase
+        response = supabase.auth.sign_up({
+            'email': email,
+            'password': password,
+        })
 
-        session = SessionLocal()
+        if response.get('error'):
+            logging.error(f"Error registering user: {response['error']}")
+            return jsonify({"error": response['error']['message']}), 400
 
-        # Check if the user already exists
-        existing_user = session.execute(select(User).filter((User.username == username) | (User.email == email))).scalar_one_or_none()
-        if existing_user:
-            logging.error(f"User with username '{username}' or email '{email}' already exists")
-            return jsonify({"error": "Username or email already exists"}), 409
-
-        # Create a new user
-        new_user = User(username=username, email=email, name=name)
-        new_user.set_password(password)
-
-        # Debug log to confirm the user creation process
-        logging.debug(f"Creating new user: username={username}")
-
-        session.add(new_user)
-        logging.debug("User added to session")
-        session.commit()
-        logging.debug("Database commit successful")
-        session.close()
-
-        logging.info(f"User registered successfully: username={username}")
+        logging.info(f"User registered successfully: email={email}")
         return jsonify({"message": "User registered successfully"}), 201
 
     except Exception as e:
         logging.error(f"Internal server error: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
-# Handle user login
+
+# Handle user login with Supabase
 @bp.route('/auth/login', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def login():
@@ -73,131 +65,127 @@ def login():
 
     try:
         data = request.json
-        identifier = data.get('identifier')
+        email = data.get('email')
         password = data.get('password')
 
-        logging.debug(f"Received login data: identifier={identifier}")
+        if not email or not password:
+            logging.error("Email and password are required for login")
+            return jsonify({"error": "Email and password are required"}), 400
 
-        if not identifier or not password:
-            logging.error("Identifier and password are required for login")
-            return jsonify({"error": "Identifier and password are required"}), 400
+        # Log in user via Supabase
+        response = supabase.auth.sign_in({
+            'email': email,
+            'password': password,
+        })
 
-        # Use SQLAlchemy session to find user by username or email
-        session = SessionLocal()
+        if response.get('error'):
+            logging.error(f"Error logging in user: {response['error']}")
+            return jsonify({"error": response['error']['message']}), 401
 
-        user = session.query(User).filter(
-            (User.username == identifier) | (User.email == identifier)
-        ).first()
-
-        if user and user.check_password(password):
-            # Create a JWT access token for the user
-            access_token = create_access_token(identity={'username': user.username})
-            session.close()
-            logging.info(f"User logged in successfully: identifier={identifier}")
-            return jsonify(access_token=access_token), 200
-
-        logging.error(f"Invalid credentials for identifier: {identifier}")
-        session.close()
-        return jsonify({"error": "Invalid identifier or password"}), 401
+        logging.info(f"User logged in successfully: email={email}")
+        return jsonify(response['session']), 200
 
     except Exception as e:
         logging.error(f"Internal server error: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
+
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])
-@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def scrape_and_store():
-    current_user_id = get_jwt_identity()  # Get the current user from JWT
-    logging.debug(f"User {current_user_id} is scraping a website.")
-    data = request.json
-    company_url = data.get('companyUrl')
+    try:
+        data = request.json
+        company_url = data.get('companyUrl')
 
-    if company_url:
-        try:
-            # Scrape the website recursively
-            logging.debug(f"Scraping website: {company_url}")
-            scraped_data = scrape_website(company_url)
+        if company_url:
+            try:
+                # Scrape the website recursively
+                logging.debug(f"Scraping website: {company_url}")
+                scraped_data = scrape_website(company_url)
 
-            if scraped_data:
-                # Store scraped data in Pinecone
-                store_in_pinecone(company_url, scraped_data)
-                logging.debug(f"Data scraped and stored successfully for URL: {company_url}")
-                return jsonify({"message": "Data scraped and stored successfully"}), 200
-            else:
-                logging.error("No data scraped.")
-                return jsonify({"error": "No data scraped"}), 500
+                if scraped_data:
+                    # Store scraped data in Pinecone
+                    store_in_pinecone(company_url, scraped_data)
+                    logging.debug(f"Data scraped and stored successfully for URL: {company_url}")
+                    return jsonify({"message": "Data scraped and stored successfully"}), 200
+                else:
+                    logging.error("No data scraped.")
+                    return jsonify({"error": "No data scraped"}), 500
 
-        except Exception as e:
-            logging.error(f"Failed to scrape website: {str(e)}")
-            return jsonify({"error": f"Failed to scrape website: {str(e)}"}), 500
+            except Exception as e:
+                logging.error(f"Failed to scrape website: {str(e)}")
+                return jsonify({"error": f"Failed to scrape website: {str(e)}"}), 500
 
-    logging.error("Company URL is required")
-    return jsonify({"error": "Company URL is required"}), 400
+        logging.error("Company URL is required")
+        return jsonify({"error": "Company URL is required"}), 400
+
+    except Exception as e:
+        logging.error(f"Error in scrape_and_store: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 # Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
-@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def add_source():
-    current_user_id = get_jwt_identity()  # Get the current user from JWT
-    logging.debug(f"User {current_user_id} is adding a source.")
     try:
-        # Handle different content types
-        if request.is_json:
-            data = request.get_json()
-            source_type = data.get('sourceType')
-            content = data.get('content')
-            title = data.get('title', 'Unnamed Source')
-        else:
-            data = request.form
-            source_type = data.get('sourceType')
-            content = data.get('content')
-            title = data.get('title', 'Unnamed Source')
+        data = request.form if request.files else request.get_json()
+        source_type = data.get('sourceType')
+        category = data.get('category')  # Category selected from the frontend
+        logging.debug(f"Received add source request with category: {category}")
 
-        logging.debug(f"Received add source request with data: {data}")
+        # Define buckets based on category for URLs
+        url_buckets = {
+            'Business Research': 'business-research',
+            'Competitor Analysis': 'competitor-analysis',
+            'Client Research': 'client-research',
+            'General Research': 'general-research'
+        }
+
+        # Define buckets based on category for files
+        file_buckets = {
+            'LRMG Knowledge': 'lrmg-knowledge',
+            'Trend Reports': 'trend-reports',
+            'Business Reports': 'business-reports',
+            'Shareholder Reports': 'shareholder-reports',
+            'Qualitative Data': 'qualitative-data',
+            'Quantitative Data': 'quantitative-data'
+        }
 
         # Handle URL scraping
-        if source_type == 'url' and content:
-            logging.debug(f"Scraping URL: {content}")
-            scraped_data = scrape_website(content)  # Treat as website URL
+        if source_type == 'url':
+            bucket_name = url_buckets.get(category)
+            logging.debug(f"Scraping and storing URL in bucket: {bucket_name}")
+            scraped_data = scrape_website(data.get('content'))
             if scraped_data:
-                store_in_pinecone(content, scraped_data)
-                insert_source(content, 'url', title, scraped_data)
-                return jsonify({"message": "Website scraped, stored in Pinecone, and metadata saved"}), 200
-            else:
-                logging.error("Failed to scrape the URL")
-                return jsonify({"error": "Failed to scrape the URL"}), 500
+                store_in_pinecone(data.get('content'), scraped_data)
+                return jsonify({"message": f"URL scraped and stored in {bucket_name}"}), 200
 
-        # Handle other types (file upload, text, etc.)
-        file = request.files.get('file')
-        if file:
-            filename = file.filename
-            # Ensure the 'uploads' directory exists
-            upload_dir = 'uploads'
-            if not os.path.exists(upload_dir):
-                os.makedirs(upload_dir)
+        # Handle file uploads
+        elif source_type == 'file':
+            file = request.files.get('file')
+            if file:
+                filename = secure_filename(file.filename)  # Secure the filename
+                bucket_name = file_buckets.get(category)
 
-            filepath = os.path.join(upload_dir, filename)  # Store the uploaded file
-            file.save(filepath)
+                # Convert file to a stream
+                file_stream = file.read()  # Ensure it is read as a byte stream
 
-            # Process file based on its type (PDF, DOCX, CSV)
-            file_type = filename.split('.')[-1].lower()
-            if file_type in ['pdf', 'docx', 'csv']:
-                extracted_text = extract_text_from_file(filepath, file_type)  # Custom function to extract text
+                # Upload file to the correct bucket in Supabase
+                upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", file_stream)
+                if upload_response.get("error"):
+                    logging.error(f"Error uploading file: {upload_response['error']}")
+                    return jsonify({"error": "File upload failed"}), 500
+
+                # Get the public URL for the uploaded file
+                file_url = supabase.storage.from_(bucket_name).get_public_url(f"{category}/{filename}")
+                
+                # Extract text from the file (if it's a PDF, DOCX, CSV, etc.)
+                extracted_text = extract_text_from_file(file_url, filename.split('.')[-1])
                 store_in_pinecone(filename, [extracted_text])
-                insert_source(filename, file_type, filename, extracted_text)
-                return jsonify({"message": f"File {filename} uploaded, processed, stored in Pinecone, and metadata saved"}), 200
-            else:
-                logging.error("Unsupported file type")
-                return jsonify({"error": "Unsupported file type"}), 400
 
-        elif source_type == 'text' and content:
-            logging.debug(f"Storing text content: {content}")
-            store_in_pinecone('custom_text_source', [content])
-            insert_source('custom_text_source', 'text', title, content)
-            return jsonify({"message": "Text content stored successfully"}), 200
+                return jsonify({"message": f"File {filename} uploaded to {bucket_name} and processed"}), 200
 
         logging.error("Invalid source type or content")
         return jsonify({"error": "Invalid source type or content"}), 400
@@ -208,19 +196,16 @@ def add_source():
 
 # Handle POST request to query the unified namespace in Pinecone
 @bp.route('/query', methods=['POST'])
-@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def query():
-    current_user_id = get_jwt_identity()  # Get the current user from JWT
-    logging.debug(f"User {current_user_id} is querying the knowledge base.")
-    data = request.json
-    user_question = data.get('userQuestion')
-
-    if not user_question:
-        logging.error("User question is required")
-        return jsonify({"error": "User question is required"}), 400
-
     try:
+        data = request.json
+        user_question = data.get('userQuestion')
+
+        if not user_question:
+            logging.error("User question is required")
+            return jsonify({"error": "User question is required"}), 400
+
         # Query the whole vector database (global knowledge base)
         matched_texts = query_pinecone(user_question, namespace="global_knowledge_base")
 
@@ -241,24 +226,29 @@ def query():
         logging.error(f"Failed to query data: {str(e)}")
         return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
 
+
 # Handle GET request to retrieve all stored sources
 @bp.route('/sources', methods=['GET'])
-@jwt_required()
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
 def get_sources():
-    current_user_id = get_jwt_identity()  # Get the current user from JWT
-    logging.debug(f"User {current_user_id} is retrieving all sources.")
     try:
-        sources = get_all_sources()  # Retrieve all stored sources from the database
+        # Retrieve all stored sources from Supabase table
+        response = supabase.from_('sources').select('*').execute()
+
+        if response.get('error'):
+            logging.error(f"Error retrieving sources from Supabase: {response['error']}")
+            return jsonify({"error": "Failed to retrieve sources"}), 500
+
+        sources = response.get('data', [])
+        logging.debug(f"Sources retrieved from Supabase: {sources}")
 
         if sources:
-            logging.debug(f"Sources retrieved from database: {sources}")
-            sources_list = [dict(source) for source in sources]  # Convert SQLite Row objects to dictionaries
-            return jsonify(sources_list), 200
+            return jsonify(sources), 200
         else:
-            logging.info("No sources found in database.")
+            logging.info("No sources found in the database.")
             return jsonify({"message": "No sources available"}), 404
 
     except Exception as e:
         logging.error(f"Error retrieving sources: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
