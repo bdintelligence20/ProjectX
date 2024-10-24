@@ -2,35 +2,21 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { TextField, Button, Box, Typography } from '@mui/material';
-import AuthContext from '../../AuthContext'; // Import AuthContext
+import AuthContext from '../../AuthContext';
 
 const Login = () => {
   const { login } = useContext(AuthContext);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        login(data.access_token);
-        navigate('/dashboard');
-      } else {
-        setError(data.error);
-      }
+      await login(email, password);
+      navigate('/dashboard'); // Redirect to dashboard after successful login
     } catch (error) {
-      setError('Something went wrong. Please try again.');
+      setError(error.message);
     }
   };
 
@@ -39,9 +25,9 @@ const Login = () => {
       <Typography variant="h4">Login</Typography>
       {error && <Typography color="error">{error}</Typography>}
       <TextField
-        label="Username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
+        label="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
         margin="normal"
       />
       <TextField

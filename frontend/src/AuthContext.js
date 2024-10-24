@@ -1,40 +1,73 @@
-// src/AuthContext.js
+// AuthContext.js
 import React, { createContext, useState, useEffect } from 'react';
+import { supabase } from './supabaseClient'; // Import Supabase client
 
-// Create AuthContext
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [authToken, setAuthToken] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check for authentication token in local storage
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      setAuthToken(token);
-    }
-    setLoading(false);
+    // Check for an existing session on component mount
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        localStorage.setItem('user', JSON.stringify(session.user)); // Persist user in local storage
+      }
+
+      // Listen for auth state changes
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          localStorage.setItem('user', JSON.stringify(session.user)); // Update user in local storage
+        } else {
+          setUser(null);
+          localStorage.removeItem('user');
+        }
+      });
+
+      setLoading(false);
+      return () => {
+        authListener.subscription?.unsubscribe();
+      };
+    };
+
+    checkSession();
   }, []);
 
-  // Function to log in
-  const login = (token) => {
-    localStorage.setItem('token', token);
-    setAuthToken(token);
+  // Login function using Supabase
+  const login = async (email, password) => {
+    const { data: { session }, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) throw error;
+    if (session?.user) {
+      setUser(session.user);
+      localStorage.setItem('user', JSON.stringify(session.user)); // Persist user in local storage
+    }
   };
 
-  // Function to log out
-  const logout = () => {
-    localStorage.removeItem('token');
-    setAuthToken(null);
+  // Register function using Supabase
+  const register = async (email, password) => {
+    const { data: { user }, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    setUser(user);
+    localStorage.setItem('user', JSON.stringify(user)); // Persist user in local storage
   };
 
-  if (loading) {
-    return null; // Prevent the rendering of children until the loading is complete
-  }
+  // Logout function using Supabase
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    localStorage.removeItem('user'); // Clear local storage on logout
+  };
 
   return (
-    <AuthContext.Provider value={{ authToken, login, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,8 @@
+// Dashboard.js
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthContext from '../AuthContext';
-import { Box, Typography, Avatar, IconButton } from '@mui/material';
+import { Box, Typography, Avatar, IconButton, CircularProgress } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import Sidebar from './common/Sidebar';
 import FeedbackIcon from '@mui/icons-material/Feedback';
@@ -18,26 +19,26 @@ const cards = [
 ];
 
 export default function Dashboard() {
-  const { authToken } = useContext(AuthContext);
+  const { user, loading } = useContext(AuthContext); // Use user and loading state from AuthContext
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('default'); // Ensure initial state is 'default'
 
   // Redirect to login if user is not authenticated
   useEffect(() => {
-    if (!authToken) {
+    if (!loading && !user) { // Check for loading state to prevent premature redirects
       navigate('/login');
     }
-  }, [authToken, navigate]);
+  }, [user, loading, navigate]);
 
-  // Function to switch between different views
-  const handleSectionClick = (section) => {
-    setActiveSection(section);
-  };
+  // Display loading spinner while checking authentication state
+  if (loading) {
+    return <CircularProgress />;
+  }
 
   return (
     <Box display="flex" height="100vh">
       {/* Sidebar with Clickable Navigation */}
-      <Sidebar onSectionClick={handleSectionClick} />
+      <Sidebar onSectionClick={setActiveSection} />
 
       {/* Main Content Area */}
       <Box flex={1} padding="20px" display="flex" flexDirection="column">
@@ -66,7 +67,7 @@ export default function Dashboard() {
                       textAlign: 'center',
                       cursor: 'pointer',
                     }}
-                    onClick={() => handleSectionClick(card.title)}
+                    onClick={() => setActiveSection(card.title)}
                   >
                     <Typography variant="h6">{card.title}</Typography>
                   </Box>
