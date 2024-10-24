@@ -1,13 +1,24 @@
 // App.js
-import React from 'react';
-import { ThemeProvider } from '@mui/material/styles';
+import React, { useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import theme from './styles/theme';
-import Dashboard from './components/Dashboard';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from './styles/theme'; // Import your custom theme
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import { CircularProgress, Box } from '@mui/material';
-import { AuthProvider } from './AuthContext'; // Import AuthProvider
+import Dashboard from './components/Dashboard'; // Import your Dashboard component
+import AuthContext, { AuthProvider } from './AuthContext'; // Import AuthContext and Provider
+import { CircularProgress } from '@mui/material';
+
+// ProtectedRoute component for route guarding
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return <CircularProgress />; // Show loading indicator while checking auth state
+  }
+
+  return user ? children : <Navigate to="/login" />;
+};
 
 function App() {
   return (
@@ -18,7 +29,7 @@ function App() {
             <Route path="/" element={<Navigate to="/login" />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           </Routes>
         </Router>
       </ThemeProvider>

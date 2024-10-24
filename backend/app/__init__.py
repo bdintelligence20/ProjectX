@@ -1,39 +1,53 @@
-from flask import Flask
+from flask import Flask, request, jsonify
+import os
+import jwt
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
 
-# Load environment variables from the .env file
 load_dotenv()
 
-# Initialize extensions without an app context yet
 db = SQLAlchemy()
 bcrypt = Bcrypt()
-jwt = JWTManager()
 
 def create_app():
     app = Flask(__name__)
-
-    # Set up configurations
-    db_path = os.path.join(os.getcwd(), 'users.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Load JWT secret key from environment variables
-    app.secret_key = os.getenv('SECRET_KEY')  # Load Flask secret key from environment variables for sessions
+    app.secret_key = os.getenv('SECRET_KEY')
 
-    # Initialize extensions with app
     db.init_app(app)
     bcrypt.init_app(app)
-    jwt.init_app(app)
-
-    # Properly configure CORS to allow the frontend domain
-    CORS(app, resources={r"/auth/*": {"origins": "https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev"}})
-
-    # Import routes here to avoid circular imports
-    from .routes import bp
-    app.register_blueprint(bp)
+    CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
     return app
+
+def verify_supabase_jwt(jwt_token):
+    """Verify JWT token using the secret key from Supabase."""
+    try:
+        secret = os.getenv('SUPABASE_JWT_SECRET')
+        decoded_token = jwt.decode(jwt_token, secret, algorithms=["HS256"])
+        return decoded_token
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+app = create_app()
+
+@app.route('/protected', methods=['GET'])
+def protected():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"message": "Missing token"}), 401
+
+    token = auth_header.split(" ")[1]
+    user = verify_supabase_jwt(token)
+    if user:
+        return jsonify({"message": f"Hello, {user['email']}"}), 200
+    else:
+        return jsonify({"message": "Invalid token"}), 401
+
+if __name__ == "__main__":
+    app.run(debug=True)
