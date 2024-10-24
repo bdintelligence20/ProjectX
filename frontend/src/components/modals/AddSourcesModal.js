@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { Box, Typography, Modal, Button, Card, CardContent, IconButton } from '@mui/material';
+import { Box, Typography, Modal, Button, Card, CardContent, IconButton, Select, MenuItem } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 
 axios.defaults.baseURL = 'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev';
-
 
 const modalStyle = {
   position: 'absolute',
@@ -25,125 +24,56 @@ export default function AddSourcesModal({ onSourceAdded }) {
   const [activeMethod, setActiveMethod] = useState(null);  // Track method of source input
   const [sourceLink, setSourceLink] = useState('');  // Store the website link input
   const [file, setFile] = useState(null);  // Store uploaded file
-  const [pastedText, setPastedText] = useState('');  // Store pasted text
-  const [statusMessage, setStatusMessage] = useState('');  // To provide feedback
+  const [category, setCategory] = useState(''); // Store selected category
+
+  // List of categories for URLs
+  const urlCategories = ['Business Research', 'Competitor Analysis', 'Client Research', 'General Research'];
+
+  // List of categories for Files
+  const fileCategories = ['LRMG Knowledge', 'Trend Reports', 'Business Reports', 'Shareholder Reports', 'Qualitative Data', 'Quantitative Data'];
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => {
     setOpen(false);
-    setActiveMethod(null);
-    setSourceLink('');  // Reset inputs when modal closes
+    setSourceLink('');
     setFile(null);
-    setPastedText('');
-    setStatusMessage('');  // Reset the status message
+    setCategory('');  // Reset the category
   };
 
-  // Handle website link addition
   const handleAddSource = async () => {
-    if (sourceLink.trim()) {
-      try {
-        setStatusMessage('Processing website link...');
-  
-        // Ensure content-type is JSON and data is formatted properly
-        const response = await axios.post(
-          'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev/add-source',
-          {
-            sourceType: 'url',
-            content: sourceLink,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-  
-        if (response.status === 200) {
-          const newSource = {
-            title: `Website: ${sourceLink}`,
-            link: sourceLink,
-          };
-          onSourceAdded(newSource); // Add new source via the prop function
-          setStatusMessage('Website link processed successfully!');
-          handleClose();
-        } else {
-          setStatusMessage('Failed to process website link.');
-        }
-      } catch (error) {
-        setStatusMessage('Error processing website link.');
-        console.error("Error:", error);
-      }
-    }
-  };
-  
-
-  // Handle file addition
-  const handleFileUpload = async () => {
-    if (file) {
-      try {
-        setStatusMessage('Processing file...');
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('sourceType', 'file');
-
-        const response = await axios.post('/add-source', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-
-        if (response.status === 200) {
-          const newSource = {
-            title: `File: ${file.name}`,
-            file: file,
-          };
-          onSourceAdded(newSource);
-          setStatusMessage('File processed successfully!');
-          handleClose();
-        } else {
-          setStatusMessage('Failed to process file.');
-        }
-      } catch (error) {
-        setStatusMessage('Error processing file.');
-      }
+    // Process URL or file upload based on selected method and category
+    if (sourceLink && category) {
+      const response = await axios.post('/add-source', {
+        sourceType: 'url',
+        content: sourceLink,
+        category: category,  // Pass the selected category
+      });
+      onSourceAdded(response.data);
+      handleClose();
+    } else if (file && category) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sourceType', 'file');
+      formData.append('category', category);  // Pass the selected category
+      const response = await axios.post('/add-source', formData);
+      onSourceAdded(response.data);
+      handleClose();
     }
   };
 
-  // Handle pasted text addition
-  const handleAddPastedText = async () => {
-    if (pastedText.trim()) {
-      try {
-        setStatusMessage('Processing pasted text...');
-
-        const response = await axios.post('/add-source', {
-          sourceType: 'text',
-          content: pastedText,
-        });
-
-        if (response.status === 200) {
-          const newSource = {
-            title: 'Pasted Text',
-            text: pastedText,
-          };
-          onSourceAdded(newSource);
-          setStatusMessage('Pasted text processed successfully!');
-          handleClose();
-        } else {
-          setStatusMessage('Failed to process pasted text.');
-        }
-      } catch (error) {
-        setStatusMessage('Error processing pasted text.');
-      }
-    }
-  };
-
-  // Render content based on selected input method
+  // Render content based on the method
   const renderContent = () => {
-    switch (activeMethod) {
-      case 'website':
-        return (
-          <>
+    return (
+      <Box>
+        {/* Category Selection */}
+        <Select value={category} onChange={(e) => setCategory(e.target.value)} fullWidth>
+          {(activeMethod === 'file' ? fileCategories : urlCategories).map((cat) => (
+            <MenuItem value={cat} key={cat}>{cat}</MenuItem>
+          ))}
+        </Select>
+
+        {activeMethod === 'website' && (
+          <Box>
             <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Upload Website Link</Typography>
             <input
               type="url"
@@ -152,147 +82,27 @@ export default function AddSourcesModal({ onSourceAdded }) {
               onChange={(e) => setSourceLink(e.target.value)}
               style={{ padding: '10px', width: '100%' }}
             />
-            <Button
-              variant="contained"
-              sx={{ backgroundColor: '#0073e6', marginTop: '20px' }}
-              onClick={handleAddSource}
-            >
+            <Button variant="contained" sx={{ backgroundColor: '#0073e6', marginTop: '20px' }} onClick={handleAddSource}>
               Submit
             </Button>
-            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>
-              Back
-            </Button>
-          </>
-        );
-      case 'file':
-        return (
-          <>
+          </Box>
+        )}
+
+        {activeMethod === 'file' && (
+          <Box>
             <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Upload File</Typography>
             <input
               type="file"
               accept=".pdf,.csv,.docx,.eml"
               onChange={(e) => setFile(e.target.files[0])}
             />
-            <Button
-              variant="contained"
-              sx={{ backgroundColor: '#0073e6', marginTop: '20px' }}
-              onClick={handleFileUpload}
-              disabled={!file}  // Disable button if no file is selected
-            >
+            <Button variant="contained" sx={{ backgroundColor: '#0073e6', marginTop: '20px' }} onClick={handleAddSource} disabled={!file}>
               Submit
             </Button>
-            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>
-              Back
-            </Button>
-          </>
-        );
-      case 'text':
-        return (
-          <>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Paste Copied Text</Typography>
-            <textarea
-              placeholder="Paste your text here..."
-              rows="6"
-              style={{ padding: '10px', width: '100%' }}
-              value={pastedText}
-              onChange={(e) => setPastedText(e.target.value)}
-            />
-            <Button
-              variant="contained"
-              sx={{ backgroundColor: '#0073e6', marginTop: '20px' }}
-              onClick={handleAddPastedText}
-              disabled={!pastedText.trim()}  // Disable if no text is pasted
-            >
-              Submit
-            </Button>
-            <Button onClick={() => setActiveMethod(null)} sx={{ marginTop: '20px' }}>
-              Back
-            </Button>
-          </>
-        );
-      default:
-        return (
-          <>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Add sources</Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ marginBottom: '30px' }}>
-              Upload sources by adding website links, files, or pasting text.
-            </Typography>
-            <Box
-              sx={{
-                border: '2px dashed #e0e0e0',
-                borderRadius: '12px',
-                padding: '50px',
-                textAlign: 'center',
-                backgroundColor: '#f9f9f9',
-                marginBottom: '30px',
-              }}
-            >
-              <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>
-                Upload sources
-              </Typography>
-            </Box>
-            <Box display="flex" justifyContent="space-between" sx={{ marginTop: '20px', gap: '20px' }}>
-              <Card
-                sx={{
-                  border: '1px dashed #e0e0e0',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  flex: '1',
-                }}
-              >
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Website</Typography>
-                  <Button
-                    onClick={() => setActiveMethod('website')}
-                    variant="contained"
-                    sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}
-                  >
-                    Website
-                  </Button>
-                </CardContent>
-              </Card>
-              <Card
-                sx={{
-                  border: '1px dashed #e0e0e0',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  flex: '1',
-                }}
-              >
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>File (PDF, CSV, DOCX, EML)</Typography>
-                  <Button
-                    onClick={() => setActiveMethod('file')}
-                    variant="contained"
-                    sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}
-                  >
-                    File
-                  </Button>
-                </CardContent>
-              </Card>
-              <Card
-                sx={{
-                  border: '1px dashed #e0e0e0',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  flex: '1',
-                }}
-              >
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Pasted Text</Typography>
-                  <Button
-                    onClick={() => setActiveMethod('text')}
-                    variant="contained"
-                    sx={{ marginTop: '10px', backgroundColor: '#0073e6' }}
-                  >
-                    Pasted Text
-                  </Button>
-                </CardContent>
-              </Card>
-            </Box>
-          </>
-        );
-    }
+          </Box>
+        )}
+      </Box>
+    );
   };
 
   return (
@@ -305,11 +115,44 @@ export default function AddSourcesModal({ onSourceAdded }) {
           Add Sources
         </Typography>
       </Box>
+
       <Modal open={open} onClose={handleClose}>
         <Box sx={modalStyle}>
-          {renderContent()}
+          {activeMethod ? (
+            renderContent()
+          ) : (
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Add sources</Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ marginBottom: '30px' }}>
+                Upload sources by adding website links, files, or pasting text.
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
+                <CardOption title="Website" onClick={() => setActiveMethod('website')} />
+                <CardOption title="File (PDF, CSV, DOCX, EML)" onClick={() => setActiveMethod('file')} />
+              </Box>
+            </Box>
+          )}
         </Box>
       </Modal>
     </Box>
   );
 }
+
+// Helper CardOption component for reusability
+const CardOption = ({ title, onClick }) => (
+  <Card
+    sx={{
+      border: '1px dashed #e0e0e0',
+      borderRadius: '12px',
+      padding: '20px',
+      flex: '1',
+      textAlign: 'center',
+      cursor: 'pointer',
+    }}
+    onClick={onClick}
+  >
+    <CardContent>
+      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{title}</Typography>
+    </CardContent>
+  </Card>
+);
