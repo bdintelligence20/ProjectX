@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_KEY")
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
 supabase: Client = create_client(supabase_url, supabase_key)
 
 bp = Blueprint('main', __name__)
@@ -126,13 +126,21 @@ def scrape_and_store():
 
 
 # Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
+# Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def add_source():
     try:
-        data = request.form if request.files else request.get_json()
+        # Determine if the request contains a file or JSON
+        if 'file' in request.files:
+            data = request.form
+            file = request.files['file']
+        else:
+            data = request.get_json()
+            file = None
+
         source_type = data.get('sourceType')
-        category = data.get('category')  # Category selected from the frontend
+        category = data.get('category')
         logging.debug(f"Received add source request with category: {category}")
 
         # Define buckets based on category for URLs
@@ -154,7 +162,7 @@ def add_source():
         }
 
         # Handle URL scraping
-        if source_type == 'url':
+        if source_type == 'url' and 'content' in data:
             bucket_name = url_buckets.get(category)
             logging.debug(f"Scraping and storing URL in bucket: {bucket_name}")
             scraped_data = scrape_website(data.get('content'))
@@ -163,29 +171,40 @@ def add_source():
                 return jsonify({"message": f"URL scraped and stored in {bucket_name}"}), 200
 
         # Handle file uploads
-        elif source_type == 'file':
-            file = request.files.get('file')
-            if file:
-                filename = secure_filename(file.filename)  # Secure the filename
-                bucket_name = file_buckets.get(category)
+        elif source_type == 'file' and file:
+            filename = secure_filename(file.filename)
+            bucket_name = file_buckets.get(category)
 
-                # Convert file to a stream
-                file_stream = file.read()  # Ensure it is read as a byte stream
+            if not bucket_name:
+                logging.error("Invalid category for file upload")
+                return jsonify({"error": "Invalid category for file upload"}), 400
 
-                # Upload file to the correct bucket in Supabase
-                upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", file_stream)
-                if upload_response.get("error"):
-                    logging.error(f"Error uploading file: {upload_response['error']}")
-                    return jsonify({"error": "File upload failed"}), 500
+            # Save the file temporarily
+            temp_file_path = os.path.join('/tmp', filename)
+            file.save(temp_file_path)
 
-                # Get the public URL for the uploaded file
-                file_url = supabase.storage.from_(bucket_name).get_public_url(f"{category}/{filename}")
-                
-                # Extract text from the file (if it's a PDF, DOCX, CSV, etc.)
-                extracted_text = extract_text_from_file(file_url, filename.split('.')[-1])
-                store_in_pinecone(filename, [extracted_text])
+            # Upload file to Supabase using the temporary file path
+            with open(temp_file_path, 'rb') as f:
+                upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", f)
 
-                return jsonify({"message": f"File {filename} uploaded to {bucket_name} and processed"}), 200
+            # Check if the upload was successful by inspecting the status code
+            if upload_response.status_code != 200:
+                logging.error(f"Error uploading file: {upload_response.text}")
+                return jsonify({"error": "File upload failed"}), 500
+
+            # Generate the correct public URL for the uploaded file
+            file_url = supabase.storage.from_(bucket_name).get_public_url(f"{category}/{filename}")
+            logging.debug(f"Generated file URL: {file_url}")
+
+            if not file_url:
+                logging.error(f"Could not generate a valid file URL for: {filename}")
+                return jsonify({"error": "File URL generation failed"}), 500
+
+            # Extract text from the file if necessary
+            extracted_text = extract_text_from_file(file_url, filename.split('.')[-1])
+            store_in_pinecone(filename, [extracted_text])
+
+            return jsonify({"message": f"File {filename} uploaded to {bucket_name} and processed"}), 200
 
         logging.error("Invalid source type or content")
         return jsonify({"error": "Invalid source type or content"}), 400
