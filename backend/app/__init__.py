@@ -26,7 +26,7 @@ def create_app():
 def verify_supabase_jwt(jwt_token):
     """Verify JWT token using the secret key from Supabase."""
     try:
-        secret = os.getenv('SUPABASE_JWT_SECRET')
+        secret = os.getenv('SUPABASE_SERVICE_ROLE_SECRET')
         decoded_token = jwt.decode(jwt_token, secret, algorithms=["HS256"])
         return decoded_token
     except jwt.ExpiredSignatureError:

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+// AddSourcesModal.js
+import React, { useState, useContext } from 'react';
 import { Box, Typography, Modal, Button, Card, CardContent, IconButton, Select, MenuItem } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
+import AuthContext from '../../AuthContext'; // Import AuthContext
 
 axios.defaults.baseURL = 'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev';
 
@@ -20,6 +22,7 @@ const modalStyle = {
 };
 
 export default function AddSourcesModal({ onSourceAdded }) {
+  const { session } = useContext(AuthContext);  // Get session from AuthContext
   const [open, setOpen] = useState(false);
   const [activeMethod, setActiveMethod] = useState(null);  // Track method of source input
   const [sourceLink, setSourceLink] = useState('');  // Store the website link input
@@ -41,23 +44,46 @@ export default function AddSourcesModal({ onSourceAdded }) {
   };
 
   const handleAddSource = async () => {
+    const token = session?.access_token;  // Get the JWT token from the session
+
+    // Ensure token exists
+    if (!token) {
+      console.error("No authentication token found");
+      return;
+    }
+
+    // Set headers with the token for authorization
+    const headers = {
+      'Authorization': `Bearer ${token}`  // Pass the token in the request headers
+    };
+
     // Process URL or file upload based on selected method and category
     if (sourceLink && category) {
-      const response = await axios.post('/add-source', {
-        sourceType: 'url',
-        content: sourceLink,
-        category: category,  // Pass the selected category
-      });
-      onSourceAdded(response.data);
-      handleClose();
+      try {
+        const response = await axios.post('/add-source', {
+          sourceType: 'url',
+          content: sourceLink,
+          category: category,  // Pass the selected category
+        }, { headers });
+
+        onSourceAdded(response.data);
+        handleClose();
+      } catch (error) {
+        console.error('Failed to upload URL:', error);
+      }
     } else if (file && category) {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('sourceType', 'file');
       formData.append('category', category);  // Pass the selected category
-      const response = await axios.post('/add-source', formData);
-      onSourceAdded(response.data);
-      handleClose();
+
+      try {
+        const response = await axios.post('/add-source', formData, { headers });
+        onSourceAdded(response.data);
+        handleClose();
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+      }
     }
   };
 
@@ -122,7 +148,7 @@ export default function AddSourcesModal({ onSourceAdded }) {
             renderContent()
           ) : (
             <Box>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Add sources</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Add sources</Typography>
               <Typography variant="body2" color="textSecondary" sx={{ marginBottom: '30px' }}>
                 Upload sources by adding website links, files, or pasting text.
               </Typography>
@@ -156,3 +182,5 @@ const CardOption = ({ title, onClick }) => (
     </CardContent>
   </Card>
 );
+
+
