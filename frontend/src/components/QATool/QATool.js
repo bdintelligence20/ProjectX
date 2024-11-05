@@ -1,96 +1,106 @@
-import React from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import axios from 'axios';
 
 export default function QATool() {
+  const [file, setFile] = useState(null);
+  const [originalFileUrl, setOriginalFileUrl] = useState('');
+  const [revisedFileUrl, setRevisedFileUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+
+    setLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post('/qa-tool/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setOriginalFileUrl(response.data.originalFileUrl);
+      setRevisedFileUrl(response.data.revisedFileUrl);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Box 
-      display="flex" 
-      flexDirection="column" 
-      justifyContent="center" 
-      alignItems="center" 
-      height="100vh"
+    <Box
+      display="flex"
+      flexDirection="column"
+      justifyContent="center"
+      alignItems="center"
       padding="40px"
     >
-      {/* Header Section */}
       <Typography variant="h3" sx={{ fontWeight: 'bold', fontSize: '36px', marginBottom: '20px' }}>
         QA Tool
       </Typography>
-      <Typography 
-        variant="body1" 
-        color="textSecondary" 
-        sx={{ 
-          marginBottom: '40px', 
-          maxWidth: '800px', 
-          textAlign: 'Left', 
-          fontSize: '18px', 
-          lineHeight: '1.5' 
-        }}
-      >
-        Users can upload PDF, DOCX, and PowerPoint files, paste text, or input website links to the quality assurance tool, 
-        which displays the original content on the left and the revised version on the right, allowing for easy comparison and review of changes.
-      </Typography>
 
-      {/* File Upload Section */}
       <Box
         sx={{
           border: '2px dashed #c4c4c4',
           borderRadius: '12px',
-          padding: '60px',
+          padding: '40px',
           textAlign: 'center',
           marginBottom: '40px',
           backgroundColor: '#fff',
           width: '100%',
-          maxWidth: '700px', // Narrow the width slightly to match design
+          maxWidth: '700px',
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px', fontSize: '24px' }}>
-          Upload File
-        </Typography>
-        <Typography variant="body2" sx={{ fontSize: '16px', marginBottom: '20px' }}>
-          Drag & Drop or <Typography component="span" color="primary" sx={{ cursor: 'pointer' }}>choose file</Typography> to upload
-        </Typography>
-        <Typography variant="body2" sx={{ fontSize: '16px' }}>PDF, DOCX, PPT</Typography>
+        <Button variant="contained" component="label">
+          Choose File
+          <input type="file" hidden onChange={handleFileChange} />
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleUpload}
+          sx={{ marginTop: '20px' }}
+          disabled={!file || loading}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Upload and Check'}
+        </Button>
       </Box>
 
-      {/* Buttons for Website and Copied Text */}
-      <Box 
-        display="flex" 
-        justifyContent="space-between" 
-        width="100%" 
-        maxWidth="700px" // Match the width of the upload box
-        gap="20px"
-      >
-        <Button 
-          variant="outlined" 
-          sx={{ 
-            flex: 1, 
-            padding: '15px', 
-            fontSize: '16px', 
-            textTransform: 'none', 
-            borderRadius: '12px', 
-            fontWeight: 'bold', 
-            backgroundColor: '#f0f0f0',
-            height: '64px' // Match button height to make it more substantial
-          }}
-        >
-          Website
-        </Button>
-        <Button 
-          variant="outlined" 
-          sx={{ 
-            flex: 1, 
-            padding: '15px', 
-            fontSize: '16px', 
-            textTransform: 'none', 
-            borderRadius: '12px', 
-            fontWeight: 'bold', 
-            backgroundColor: '#f0f0f0',
-            height: '64px' // Match button height to make it more substantial
-          }}
-        >
-          Copied Text
-        </Button>
-      </Box>
+      {originalFileUrl && revisedFileUrl && (
+        <Box display="flex" justifyContent="space-between" width="100%" maxWidth="800px" mt={4}>
+          <Box width="48%">
+            <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
+              Original Document
+            </Typography>
+            <iframe
+              src={`https://view.officeapps.live.com/op/embed.aspx?src=${originalFileUrl}`}
+              width="100%"
+              height="500px"
+              frameBorder="0"
+              title="Original Document"
+            ></iframe>
+          </Box>
+
+          <Box width="48%">
+            <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
+              Revised Document
+            </Typography>
+            <iframe
+              src={`https://view.officeapps.live.com/op/embed.aspx?src=${revisedFileUrl}`}
+              width="100%"
+              height="500px"
+              frameBorder="0"
+              title="Revised Document"
+            ></iframe>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

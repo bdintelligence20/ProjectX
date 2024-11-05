@@ -8,7 +8,7 @@ load_dotenv()
 # Initialize OpenAI client with API key from environment variable
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Function to query the LLM using the OpenAI client object
+# Function to query the LLM for general queries
 def query_llm(matched_texts, user_question):
     try:
         if not matched_texts:
@@ -27,7 +27,7 @@ def query_llm(matched_texts, user_question):
 
         # Query the OpenAI model using the client
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Use your desired model here
+            model="gpt-4o-mini",  # General model for context-based answers
             messages=messages,
             temperature=0.7,
             max_tokens=5000,
@@ -36,10 +36,36 @@ def query_llm(matched_texts, user_question):
             presence_penalty=0.5,
         )
 
-        # Extract the response text
+        # Extract and return the response text
         return response.choices[0].message.content.strip()
 
     except Exception as e:
         print(f"Error querying LLM: {str(e)}")
         return None
 
+# Function to perform QA on text for spelling, grammar, and structure
+def qa_check(original_text):
+    try:
+        # Create prompt for QA checking
+        messages = [
+            {"role": "system", "content": "You are a quality assurance assistant specializing in spelling, grammar, and sentence structure corrections."},
+            {"role": "user", "content": f"Please correct any spelling, grammar, and structural issues in the following text:\n\n{original_text}"}
+        ]
+
+        # Query the OpenAI model for QA purposes
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Model used specifically for QA tasks
+            messages=messages,
+            temperature=0.3,  # Lower temperature for accurate corrections
+            max_tokens=3000,
+            top_p=1,
+            frequency_penalty=0.2,
+            presence_penalty=0.1,
+        )
+
+        # Extract and return the QA-corrected text
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print(f"Error performing QA check: {str(e)}")
+        return None

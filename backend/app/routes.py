@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
-from app.llm import query_llm
+from app.llm import query_llm, qa_check
 from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
 import logging
@@ -9,6 +9,7 @@ import traceback
 from sqlalchemy import select
 import os
 from supabase import create_client, Client
+import urllib.parse
 
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG)
@@ -124,14 +125,12 @@ def scrape_and_store():
         logging.error(f"Error in scrape_and_store: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
-# Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 # Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
 @bp.route('/add-source', methods=['POST'])
 @cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def add_source():
     try:
-        # Determine if the request contains a file or JSON
+        # Check if the request includes a file
         if 'file' in request.files:
             data = request.form
             file = request.files['file']
@@ -139,71 +138,86 @@ def add_source():
             data = request.get_json()
             file = None
 
+        # Retrieve source type and category
         source_type = data.get('sourceType')
-        category = data.get('category')
+        category = data.get('category').replace(" ", "_")  # Replacing spaces with underscores
         logging.debug(f"Received add source request with category: {category}")
 
-        # Define buckets based on category for URLs
+        # Define buckets for URL and file storage based on category
         url_buckets = {
-            'Business Research': 'business-research',
-            'Competitor Analysis': 'competitor-analysis',
-            'Client Research': 'client-research',
-            'General Research': 'general-research'
+            'Business_Research': 'business-research',
+            'Competitor_Analysis': 'competitor-analysis',
+            'Client_Research': 'client-research',
+            'General_Research': 'general-research'
         }
 
-        # Define buckets based on category for files
         file_buckets = {
-            'LRMG Knowledge': 'lrmg-knowledge',
-            'Trend Reports': 'trend-reports',
-            'Business Reports': 'business-reports',
-            'Shareholder Reports': 'shareholder-reports',
-            'Qualitative Data': 'qualitative-data',
-            'Quantitative Data': 'quantitative-data'
+            'LRMG_Knowledge': 'lrmg-knowledge',
+            'Trend_Reports': 'trend-reports',
+            'Business_Reports': 'business-reports',
+            'Shareholder_Reports': 'shareholder-reports',
+            'Qualitative_Data': 'qualitative-data',
+            'Quantitative_Data': 'quantitative-data'
         }
 
-        # Handle URL scraping
+        # Process URL scraping and store as text file
         if source_type == 'url' and 'content' in data:
             bucket_name = url_buckets.get(category)
             logging.debug(f"Scraping and storing URL in bucket: {bucket_name}")
             scraped_data = scrape_website(data.get('content'))
-            if scraped_data:
-                store_in_pinecone(data.get('content'), scraped_data)
-                return jsonify({"message": f"URL scraped and stored in {bucket_name}"}), 200
 
-        # Handle file uploads
+            if scraped_data:
+                # Step 1: Store the scraped data in Pinecone
+                store_in_pinecone(data.get('content'), scraped_data)
+
+                # Step 2: Create a text file with the scraped data
+                temp_file_path = '/tmp/scraped_content.txt'
+                with open(temp_file_path, 'w') as f:
+                    f.write(scraped_data)
+
+                # Step 3: Upload the text file to Supabase
+                with open(temp_file_path, 'rb') as f:
+                    filename = f"scraped_content_{category}.txt"
+                    upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", f)
+
+                # Handle Supabase upload response
+                if upload_response.status_code != 200:
+                    error_message = upload_response.json().get('error', {}).get('message', 'Unknown error')
+                    logging.error(f"Error uploading file: {error_message}")
+                    return jsonify({"error": "File upload failed", "details": error_message}), 500
+
+                logging.debug(f"URL content uploaded as file {filename} to {bucket_name}")
+                return jsonify({"message": f"URL content scraped, stored in Pinecone, and uploaded to {bucket_name}"}), 200
+
+        # Process file uploads
         elif source_type == 'file' and file:
             filename = secure_filename(file.filename)
             bucket_name = file_buckets.get(category)
 
+            # Validate the category for file uploads
             if not bucket_name:
                 logging.error("Invalid category for file upload")
                 return jsonify({"error": "Invalid category for file upload"}), 400
 
-            # Save the file temporarily
+            # Save the file temporarily for processing
             temp_file_path = os.path.join('/tmp', filename)
             file.save(temp_file_path)
 
-            # Upload file to Supabase using the temporary file path
+            # Step 1: Extract text from the file and store it in Pinecone
+            extracted_text = extract_text_from_file(temp_file_path, filename.split('.')[-1])
+            store_in_pinecone(filename, [extracted_text])
+
+            # Step 2: Upload file to Supabase storage
             with open(temp_file_path, 'rb') as f:
                 upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", f)
 
-            # Check if the upload was successful by inspecting the status code
+            # Handle Supabase upload response
             if upload_response.status_code != 200:
-                logging.error(f"Error uploading file: {upload_response.text}")
-                return jsonify({"error": "File upload failed"}), 500
+                error_message = upload_response.json().get('error', {}).get('message', 'Unknown error')
+                logging.error(f"Error uploading file: {error_message}")
+                return jsonify({"error": "File upload failed", "details": error_message}), 500
 
-            # Generate the correct public URL for the uploaded file
-            file_url = supabase.storage.from_(bucket_name).get_public_url(f"{category}/{filename}")
-            logging.debug(f"Generated file URL: {file_url}")
-
-            if not file_url:
-                logging.error(f"Could not generate a valid file URL for: {filename}")
-                return jsonify({"error": "File URL generation failed"}), 500
-
-            # Extract text from the file if necessary
-            extracted_text = extract_text_from_file(file_url, filename.split('.')[-1])
-            store_in_pinecone(filename, [extracted_text])
-
+            logging.debug(f"File {filename} uploaded successfully to {bucket_name}")
             return jsonify({"message": f"File {filename} uploaded to {bucket_name} and processed"}), 200
 
         logging.error("Invalid source type or content")
@@ -245,29 +259,85 @@ def query():
         logging.error(f"Failed to query data: {str(e)}")
         return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
 
+# Function to recursively list all files in a bucket
+def list_files(bucket_name, path=''):
+    files = []
+    try:
+        response = supabase.storage.from_(bucket_name).list(path=path)
+        if 'error' in response:
+            logging.error(f"Error retrieving files from bucket '{bucket_name}': {response['error']}")
+            return files
 
-# Handle GET request to retrieve all stored sources
+        for item in response:
+            if item['type'] == 'file':
+                files.append({
+                    'name': item['name'],
+                    'path': f"{path}/{item['name']}".lstrip('/'),
+                    'url': f"https://{supabase_url}/storage/v1/object/public/{bucket_name}/{path}/{item['name']}".lstrip('/')
+                })
+            elif item['type'] == 'folder':
+                files.extend(list_files(bucket_name, path=f"{path}/{item['name']}".lstrip('/')))
+    except Exception as e:
+        logging.error(f"Error listing files in bucket '{bucket_name}': {str(e)}")
+    return files
+
 @bp.route('/sources', methods=['GET'])
 @cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
-def get_sources():
+def get_all_sources():
     try:
-        # Retrieve all stored sources from Supabase table
-        response = supabase.from_('sources').select('*').execute()
+        # Define buckets for URL and file storage based on category
+        url_buckets = {
+            'Business_Research': 'business-research',
+            'Competitor_Analysis': 'competitor-analysis',
+            'Client_Research': 'client-research',
+            'General_Research': 'general-research'
+        }
 
-        if response.get('error'):
-            logging.error(f"Error retrieving sources from Supabase: {response['error']}")
-            return jsonify({"error": "Failed to retrieve sources"}), 500
+        file_buckets = {
+            'LRMG_Knowledge': 'lrmg-knowledge',
+            'Trend_Reports': 'trend-reports',
+            'Business_Reports': 'business-reports',
+            'Shareholder_Reports': 'shareholder-reports',
+            'Qualitative_Data': 'qualitative-data',
+            'Quantitative_Data': 'quantitative-data'
+        }
 
-        sources = response.get('data', [])
-        logging.debug(f"Sources retrieved from Supabase: {sources}")
+        sources = {
+            "files": {},
+            "urls": {}
+        }
 
-        if sources:
-            return jsonify(sources), 200
-        else:
-            logging.info("No sources found in the database.")
-            return jsonify({"message": "No sources available"}), 404
+        # Process files for each bucket category
+        for category, bucket_name in file_buckets.items():
+            file_response = supabase.storage.from_(bucket_name).list()
+
+            if 'error' in file_response:
+                logging.error(f"Error retrieving files from bucket '{bucket_name}': {file_response['error']}")
+                continue
+
+            sources["files"][category] = [
+                {'name': file['name']}
+                for file in file_response
+                if 'name' in file
+            ]
+
+        # Process URLs for each URL category
+        for category, bucket_name in url_buckets.items():
+            url_response = supabase.storage.from_(bucket_name).list()
+
+            if 'error' in url_response:
+                logging.error(f"Error retrieving URLs from bucket '{bucket_name}': {url_response['error']}")
+                continue
+
+            sources["urls"][category] = [
+                {'name': url['name']}
+                for url in url_response
+                if 'name' in url
+            ]
+
+        logging.debug(f"Sources retrieved from storage: {sources}")
+        return jsonify(sources), 200
 
     except Exception as e:
-        logging.error(f"Error retrieving sources: {str(e)}")
+        logging.error(f"Error retrieving all sources: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
