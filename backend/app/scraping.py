@@ -24,6 +24,7 @@ def chunk_text(text, max_tokens=8192, overlap=100):
     sentences = sent_tokenize(text)
     chunks = []
     current_chunk = []
+    current_token_count = 0
 
     for sentence in sentences:
         tokens = tokenizer.encode(" ".join(current_chunk + [sentence]))
@@ -60,45 +61,61 @@ def extract_text_from_pdf(file_path):
 # Function to extract text from DOCX
 def extract_text_from_docx(file_path):
     doc = docx.Document(file_path)
-    full_text = []
-    for para in doc.paragraphs:
-        full_text.append(para.text)
-    return "\n".join(full_text)
+    return "\n".join([para.text for para in doc.paragraphs])
 
 # Function to extract text from CSV
 def extract_text_from_csv(file_path):
     df = pd.read_csv(file_path)
     return df.to_string()
 
-# Function to scrape website as before
-def scrape_website(url, max_depth=3, depth=0):
-    if depth > max_depth or url in visited_urls:
+# Main function to scrape a website
+def scrape_website(url, max_depth=2, depth=0):
+    global visited_count
+    if depth > max_depth or visited_count >= MAX_PAGES or url in visited_urls:
         return []
-    
-    visited_urls.add(url)
 
+    visited_urls.add(url)
+    visited_count += 1
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
 
+        # Fallback to UTF-8 encoding
+        response.encoding = response.encoding or 'utf-8'
+
         soup = BeautifulSoup(response.text, 'html.parser')
         page_text = soup.get_text(separator=' ', strip=True)
 
+        # Chunk and store scraped data
         scraped_data = chunk_text(page_text)
 
+        # Base URL for handling relative links
         base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))
         for link in soup.find_all('a', href=True):
             link_url = urljoin(base_url, link['href'])
-            if base_url in link_url and link_url not in visited_urls:
+            if should_visit_link(link_url, base_url):
                 scraped_data.extend(scrape_website(link_url, max_depth, depth + 1))
 
         return scraped_data
 
     except requests.RequestException as e:
-        print(f"Error scraping {url}: {str(e)}")
+        logging.error(f"Error scraping {url}: {str(e)}")
         return []
 
-# Function to extract text from various file types
+# Helper to decide which links to visit
+def should_visit_link(link_url, base_url):
+    parsed_link = urlparse(link_url)
+    parsed_base = urlparse(base_url)
+
+    # Visit only if link is within the same domain and doesn't match exclusion patterns
+    return (
+        parsed_link.netloc == parsed_base.netloc and
+        not link_url.endswith(('.jpg', '.jpeg', '.png', '.gif', '.pdf', '.zip', '.mp4')) and
+        '/contact-us' not in link_url and  # Example filter for repetitive paths
+        link_url not in visited_urls
+    )
+
+# Universal text extraction function
 def extract_text_from_file(file_path, file_type):
     if file_type == 'pdf':
         return extract_text_from_pdf(file_path)
