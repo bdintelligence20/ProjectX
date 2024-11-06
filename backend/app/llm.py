@@ -44,28 +44,28 @@ def query_llm(matched_texts, user_question):
         return None
 
 # Function to perform QA on text for spelling, grammar, and structure
-def qa_check(original_text):
+def check_quality_with_llm(text):
     try:
-        # Create prompt for QA checking
+        # Create a prompt for text quality assurance
         messages = [
-            {"role": "system", "content": "You are a quality assurance assistant specializing in spelling, grammar, and sentence structure corrections."},
-            {"role": "user", "content": f"Please correct any spelling, grammar, and structural issues in the following text:\n\n{original_text}"}
+            {"role": "system", "content": "Please check the following text for spelling, grammar, and structure issues:"},
+            {"role": "user", "content": text}
         ]
 
-        # Query the OpenAI model for QA purposes
+        # Query the model
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Model used specifically for QA tasks
+            model="gpt-4o-mini",
             messages=messages,
-            temperature=0.3,  # Lower temperature for accurate corrections
+            temperature=0.2,
             max_tokens=3000,
             top_p=1,
-            frequency_penalty=0.2,
-            presence_penalty=0.1,
+            frequency_penalty=0,
+            presence_penalty=0
         )
 
-        # Extract and return the QA-corrected text
+        # Extract and return the response
         return response.choices[0].message.content.strip()
 
     except Exception as e:
-        print(f"Error performing QA check: {str(e)}")
+        print(f"Error in check_quality_with_llm: {str(e)}")
         return None
