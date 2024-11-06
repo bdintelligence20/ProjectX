@@ -1,106 +1,67 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, TextField } from '@mui/material';
 import axios from 'axios';
 
 export default function QATool() {
+  const [originalText, setOriginalText] = useState("");
+  const [revisedText, setRevisedText] = useState("");
   const [file, setFile] = useState(null);
-  const [originalFileUrl, setOriginalFileUrl] = useState('');
-  const [revisedFileUrl, setRevisedFileUrl] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
   };
 
-  const handleUpload = async () => {
-    if (!file) return;
-
-    setLoading(true);
+  const handleSubmit = async () => {
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await axios.post('/qa-tool/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      setOriginalFileUrl(response.data.originalFileUrl);
-      setRevisedFileUrl(response.data.revisedFileUrl);
+      const response = await axios.post('/qa-tool/upload', formData);
+      if (response.status === 200) {
+        setOriginalText(response.data.originalText);
+        setRevisedText(response.data.revisedText);
+      }
     } catch (error) {
-      console.error('Error uploading file:', error);
-    } finally {
-      setLoading(false);
+      console.error("Error uploading file:", error);
     }
   };
 
   return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      justifyContent="center"
-      alignItems="center"
-      padding="40px"
-    >
-      <Typography variant="h3" sx={{ fontWeight: 'bold', fontSize: '36px', marginBottom: '20px' }}>
-        QA Tool
-      </Typography>
-
-      <Box
-        sx={{
-          border: '2px dashed #c4c4c4',
-          borderRadius: '12px',
-          padding: '40px',
-          textAlign: 'center',
-          marginBottom: '40px',
-          backgroundColor: '#fff',
-          width: '100%',
-          maxWidth: '700px',
-        }}
-      >
-        <Button variant="contained" component="label">
-          Choose File
-          <input type="file" hidden onChange={handleFileChange} />
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleUpload}
-          sx={{ marginTop: '20px' }}
-          disabled={!file || loading}
-        >
-          {loading ? <CircularProgress size={24} /> : 'Upload and Check'}
-        </Button>
+    <Box display="flex" flexDirection="column" padding="40px" alignItems="center">
+      <Typography variant="h4" marginBottom="20px">QA Tool</Typography>
+      <Box border="2px dashed #c4c4c4" padding="20px" textAlign="center">
+        <input type="file" onChange={handleFileChange} />
+        <Button onClick={handleSubmit} variant="contained" style={{ marginTop: '10px' }}>Submit</Button>
       </Box>
 
-      {originalFileUrl && revisedFileUrl && (
-        <Box display="flex" justifyContent="space-between" width="100%" maxWidth="800px" mt={4}>
-          <Box width="48%">
-            <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
-              Original Document
-            </Typography>
-            <iframe
-              src={`https://view.officeapps.live.com/op/embed.aspx?src=${originalFileUrl}`}
-              width="100%"
-              height="500px"
-              frameBorder="0"
-              title="Original Document"
-            ></iframe>
-          </Box>
-
-          <Box width="48%">
-            <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
-              Revised Document
-            </Typography>
-            <iframe
-              src={`https://view.officeapps.live.com/op/embed.aspx?src=${revisedFileUrl}`}
-              width="100%"
-              height="500px"
-              frameBorder="0"
-              title="Revised Document"
-            ></iframe>
-          </Box>
+      <Box display="flex" justifyContent="space-around" marginTop="40px" width="100%">
+        <Box width="45%">
+          <Typography variant="h6">Original Document</Typography>
+          <TextField
+            multiline
+            fullWidth
+            rows={15}
+            variant="outlined"
+            value={originalText || "No document uploaded"}
+            InputProps={{
+              readOnly: true,
+            }}
+          />
         </Box>
-      )}
+        <Box width="45%">
+          <Typography variant="h6">Revised Document</Typography>
+          <TextField
+            multiline
+            fullWidth
+            rows={15}
+            variant="outlined"
+            value={revisedText || "No revised document available"}
+            InputProps={{
+              readOnly: true,
+            }}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 }

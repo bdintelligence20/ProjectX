@@ -1,15 +1,19 @@
 from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file
 from app.pinecone_client import store_in_pinecone, query_pinecone
-from app.llm import query_llm, qa_check
+from app.llm import query_llm
+from app.llm import check_quality_with_llm
+from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
 import logging
 import traceback
 from sqlalchemy import select
+import base64
 import os
 from supabase import create_client, Client
 import urllib.parse
+import nltk
 
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG)
@@ -20,6 +24,7 @@ supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
 supabase: Client = create_client(supabase_url, supabase_key)
 
 bp = Blueprint('main', __name__)
+bp = Blueprint('qa_tool', __name__)
 
 # Handle user registration with Supabase
 @bp.route('/auth/register', methods=['POST', 'OPTIONS'])
@@ -125,12 +130,11 @@ def scrape_and_store():
         logging.error(f"Error in scrape_and_store: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# Handle POST request to add different source types (URLs, PDFs, DOCX, CSV, Text)
+
 @bp.route('/add-source', methods=['POST'])
 @cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def add_source():
     try:
-        # Check if the request includes a file
         if 'file' in request.files:
             data = request.form
             file = request.files['file']
@@ -167,58 +171,46 @@ def add_source():
             scraped_data = scrape_website(data.get('content'))
 
             if scraped_data:
-                # Step 1: Store the scraped data in Pinecone
-                store_in_pinecone(data.get('content'), scraped_data)
+                # Chunk scraped data for ingestion
+                for idx, chunk in enumerate(scraped_data):
+                    store_in_pinecone(f"{data.get('content')}_chunk_{idx}", [chunk])
 
-                # Step 2: Create a text file with the scraped data
-                temp_file_path = '/tmp/scraped_content.txt'
-                with open(temp_file_path, 'w') as f:
-                    f.write(scraped_data)
-
-                # Step 3: Upload the text file to Supabase
-                with open(temp_file_path, 'rb') as f:
-                    filename = f"scraped_content_{category}.txt"
-                    upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", f)
-
-                # Handle Supabase upload response
-                if upload_response.status_code != 200:
-                    error_message = upload_response.json().get('error', {}).get('message', 'Unknown error')
-                    logging.error(f"Error uploading file: {error_message}")
-                    return jsonify({"error": "File upload failed", "details": error_message}), 500
-
-                logging.debug(f"URL content uploaded as file {filename} to {bucket_name}")
-                return jsonify({"message": f"URL content scraped, stored in Pinecone, and uploaded to {bucket_name}"}), 200
+                logging.debug("URL content stored in Pinecone")
+                return jsonify({"message": "URL scraped and stored in Pinecone"}), 200
 
         # Process file uploads
         elif source_type == 'file' and file:
             filename = secure_filename(file.filename)
             bucket_name = file_buckets.get(category)
 
-            # Validate the category for file uploads
             if not bucket_name:
                 logging.error("Invalid category for file upload")
                 return jsonify({"error": "Invalid category for file upload"}), 400
 
-            # Save the file temporarily for processing
+            # Save and process file
             temp_file_path = os.path.join('/tmp', filename)
             file.save(temp_file_path)
 
-            # Step 1: Extract text from the file and store it in Pinecone
-            extracted_text = extract_text_from_file(temp_file_path, filename.split('.')[-1])
-            store_in_pinecone(filename, [extracted_text])
+            # Extract and chunk text for large files
+            file_extension = filename.split('.')[-1]
+            extracted_text = extract_text_from_file(temp_file_path, file_extension)
+            text_chunks = chunk_text(extracted_text)
 
-            # Step 2: Upload file to Supabase storage
+            # Store each chunk in Pinecone
+            for idx, chunk in enumerate(text_chunks):
+                store_in_pinecone(f"{filename}_chunk_{idx}", [chunk])
+
+            # Upload original file to Supabase
             with open(temp_file_path, 'rb') as f:
                 upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", f)
 
-            # Handle Supabase upload response
             if upload_response.status_code != 200:
                 error_message = upload_response.json().get('error', {}).get('message', 'Unknown error')
                 logging.error(f"Error uploading file: {error_message}")
                 return jsonify({"error": "File upload failed", "details": error_message}), 500
 
             logging.debug(f"File {filename} uploaded successfully to {bucket_name}")
-            return jsonify({"message": f"File {filename} uploaded to {bucket_name} and processed"}), 200
+            return jsonify({"message": "File processed and uploaded to Supabase"}), 200
 
         logging.error("Invalid source type or content")
         return jsonify({"error": "Invalid source type or content"}), 400
@@ -341,3 +333,37 @@ def get_all_sources():
     except Exception as e:
         logging.error(f"Error retrieving all sources: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+
+@bp.route('/qa-tool/upload', methods=['POST'])
+@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
+def upload_and_process_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files['file']
+    file_path = os.path.join('/tmp', secure_filename(file.filename))
+    file.save(file_path)
+
+    try:
+        # Extract and chunk text from the file
+        file_type = file.filename.split('.')[-1].lower()
+        original_text = extract_text_from_file(file_path, file_type)
+        chunks = chunk_text(original_text)
+
+        # Run QA on each chunk and collect revised text
+        revised_text = []
+        for chunk in chunks:
+            revised_text.append(check_quality_with_llm(chunk))
+
+        # Combine chunks for the display
+        revised_text_combined = "\n".join(revised_text)
+
+        return jsonify({
+            "originalText": original_text,
+            "revisedText": revised_text_combined
+        }), 200
+
+    finally:
+        os.remove(file_path)  # Clean up
