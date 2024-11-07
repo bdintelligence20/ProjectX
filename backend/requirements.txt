@@ -17,4 +17,5 @@ pandas
 numpy
 pdfminer.six
 gunicorn
+spacy
 
