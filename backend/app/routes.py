@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.scraping import scrape_website, extract_text_from_file, chunk_text
+from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from app.llm import check_quality_with_llm
@@ -26,7 +26,6 @@ supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
 supabase: Client = create_client(supabase_url, supabase_key)
 
 bp = Blueprint('main', __name__)
-bp = Blueprint('qa_tool', __name__)
 
 # Handle user registration with Supabase
 @bp.route('/auth/register', methods=['POST', 'OPTIONS'])
