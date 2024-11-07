@@ -3,7 +3,9 @@ from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 from app.embeddings import get_embedding
 from app.summarization import summarize_text
-from app.scraping import extract_text_from_file  # Import the file extraction method for PDFs, DOCX, CSVs
+from app.scraping import extract_text_from_file
+import logging  # Import the file extraction method for PDFs, DOCX, CSVs
+
 
 # Load environment variables
 load_dotenv()
@@ -25,7 +27,6 @@ if index_name not in pc.list_indexes().names():
 
 # Connect to the Pinecone index
 index = pc.Index(index_name)  # Retrieve the index correctly
-
 def store_in_pinecone(source_id, scraped_data):
     """
     Store embeddings and metadata in Pinecone for each chunk or summarized content.
@@ -34,40 +35,52 @@ def store_in_pinecone(source_id, scraped_data):
     try:
         namespace = "global_knowledge_base"  # Unified namespace for all knowledge
 
-        # Process each chunk of scraped data
+        # Process each chunk
         if isinstance(scraped_data, list):
             for i, chunk in enumerate(scraped_data):
-                # Summarize larger chunks for more efficient embedding
-                summary = summarize_text(chunk) if len(chunk) > 1000 else chunk
+                # Ensure chunk is a string before calling get_embedding
+                if not isinstance(chunk, str):
+                    chunk = str(chunk)
 
-                # Generate the embedding for each chunk or summary
-                embedding = get_embedding(summary)
-                if embedding:
-                    print(f"Generated embedding for chunk {i} from {source_id} with length: {len(embedding)}")
+                # Get embedding
+                embedding = get_embedding(chunk)
+                if embedding is None:
+                    logging.error(f"Failed to generate embedding for chunk {i}. Skipping.")
+                    continue
 
-                    # Create a unique ID for each chunk (e.g., source_id_chunk_i)
+                # Check if embedding is a list of floats
+                if isinstance(embedding, list) and all(isinstance(val, float) for val in embedding):
                     vector_id = f"{source_id}_chunk_{i}"
-
-                    # Include the chunk or summary as metadata
                     metadata = {"text": chunk}
 
-                    # Upsert the embedding with metadata into the unified namespace
-                    response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
-                    print(f"Pinecone upsert response for chunk {i}: {response}")
+                    try:
+                        # Upsert into Pinecone and log the response
+                        response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
+                        logging.debug(f"Pinecone upsert response for chunk {i}: {response}")
+                    except Exception as e:
+                        logging.error(f"Error during Pinecone upsert for chunk {i}: {str(e)}")
                 else:
-                    print(f"Failed to generate embedding for chunk {i}.")
+                    logging.error(f"Invalid embedding for chunk {i} from {source_id}. Expected list of floats.")
+                    continue
         else:
-            # Handle single chunk scenario (text source, simple file content)
+            # Handle single chunk case
             embedding = get_embedding(scraped_data)
-            if embedding:
+            if embedding is not None and isinstance(embedding, list) and all(isinstance(val, float) for val in embedding):
                 vector_id = source_id
-                metadata = {"text": scraped_data}  # Include the full scraped data as metadata
-                response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
-                print(f"Pinecone upsert response: {response}")
+                metadata = {"text": scraped_data}
+
+                try:
+                    response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
+                    logging.debug(f"Pinecone upsert response: {response}")
+                except Exception as e:
+                    logging.error(f"Error during Pinecone upsert for single chunk: {str(e)}")
             else:
-                print(f"Failed to generate embedding for {source_id}.")
+                logging.error(f"Failed to generate valid embedding for {source_id}. Expected list of floats.")
     except Exception as e:
-        print(f"Error storing data in Pinecone: {str(e)}")
+        logging.error(f"General error in store_in_pinecone: {str(e)}")
+
+    logging.debug("Completed storing all chunks in Pinecone.")
+
 
 def query_pinecone(user_query, namespace="global_knowledge_base"):
     """
