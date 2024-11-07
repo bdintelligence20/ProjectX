@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
-from app.scraping import scrape_website, extract_text_from_file
+from app.scraping import scrape_website, extract_text_from_file, chunk_text
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from app.llm import check_quality_with_llm
+from app.embeddings import get_embedding
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
@@ -130,11 +131,11 @@ def scrape_and_store():
         logging.error(f"Error in scrape_and_store: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
 @bp.route('/add-source', methods=['POST'])
 @cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
 def add_source():
     try:
+        # Check if the request includes a file
         if 'file' in request.files:
             data = request.form
             file = request.files['file']
@@ -142,10 +143,9 @@ def add_source():
             data = request.get_json()
             file = None
 
-        # Retrieve source type and category
         source_type = data.get('sourceType')
-        category = data.get('category').replace(" ", "_")  # Replacing spaces with underscores
-        logging.debug(f"Received add source request with category: {category}")
+        category = data.get('category').replace(" ", "_")
+        logging.debug(f"Received add source request with category: {category} and source type: {source_type}")
 
         # Define buckets for URL and file storage based on category
         url_buckets = {
@@ -164,21 +164,49 @@ def add_source():
             'Quantitative_Data': 'quantitative-data'
         }
 
-        # Process URL scraping and store as text file
+        # URL scraping and processing
         if source_type == 'url' and 'content' in data:
             bucket_name = url_buckets.get(category)
-            logging.debug(f"Scraping and storing URL in bucket: {bucket_name}")
+            logging.debug(f"Scraping URL: {data.get('content')} for bucket: {bucket_name}")
             scraped_data = scrape_website(data.get('content'))
 
             if scraped_data:
-                # Chunk scraped data for ingestion
+                logging.debug(f"Total scraped chunks: {len(scraped_data)}")
                 for idx, chunk in enumerate(scraped_data):
-                    store_in_pinecone(f"{data.get('content')}_chunk_{idx}", [chunk])
+                    # Log the token count of each chunk
+                    token_count = len(tokenizer.encode(chunk))
+                    logging.debug(f"Chunk {idx} token count: {token_count}")
 
-                logging.debug("URL content stored in Pinecone")
-                return jsonify({"message": "URL scraped and stored in Pinecone"}), 200
+                    embedding = get_embedding(chunk)
 
-        # Process file uploads
+                    # Validate embedding size and structure
+                    if embedding and isinstance(embedding, list) and len(embedding) == 1536:
+                        try:
+                            store_in_pinecone(f"{data.get('content')}_chunk_{idx}", embedding)
+                            logging.debug(f"Stored chunk {idx} in Pinecone with embedding of size {len(embedding)}")
+                        except Exception as e:
+                            logging.error(f"Error storing chunk {idx} in Pinecone: {str(e)}")
+                    else:
+                        logging.warning(f"Invalid embedding for chunk {idx} - received embedding: {embedding}")
+
+                # Save scraped data as text and upload to Supabase
+                filename = f"{data.get('content').replace('https://', '').replace('/', '_')}.txt"
+                temp_file_path = os.path.join('/tmp', filename)
+                with open(temp_file_path, 'w') as f:
+                    f.write('\n'.join(scraped_data))
+
+                with open(temp_file_path, 'rb') as f:
+                    upload_response = supabase.storage.from_(bucket_name).upload(filename, f)
+
+                if upload_response.status_code != 200:
+                    error_message = upload_response.json().get('error', {}).get('message', 'Unknown error')
+                    logging.error(f"Error uploading file to Supabase: {error_message}")
+                    return jsonify({"error": "File upload failed", "details": error_message}), 500
+
+                logging.debug(f"URL content uploaded as file {filename} to bucket {bucket_name}")
+                return jsonify({"message": "URL scraped, stored in Pinecone, and uploaded to Supabase"}), 200
+
+        # File upload processing
         elif source_type == 'file' and file:
             filename = secure_filename(file.filename)
             bucket_name = file_buckets.get(category)
@@ -187,30 +215,42 @@ def add_source():
                 logging.error("Invalid category for file upload")
                 return jsonify({"error": "Invalid category for file upload"}), 400
 
-            # Save and process file
             temp_file_path = os.path.join('/tmp', filename)
             file.save(temp_file_path)
 
-            # Extract and chunk text for large files
-            file_extension = filename.split('.')[-1]
+            # Extract text and chunk it
+            file_extension = filename.split('.')[-1].lower()
             extracted_text = extract_text_from_file(temp_file_path, file_extension)
             text_chunks = chunk_text(extracted_text)
 
-            # Store each chunk in Pinecone
+            logging.debug(f"Extracted {len(text_chunks)} chunks from file: {filename}")
             for idx, chunk in enumerate(text_chunks):
-                store_in_pinecone(f"{filename}_chunk_{idx}", [chunk])
+                token_count = len(tokenizer.encode(chunk))
+                logging.debug(f"Chunk {idx} token count: {token_count}")
 
-            # Upload original file to Supabase
+                embedding = get_embedding(chunk)
+
+                # Ensure embedding is a list of floats and check dimension size
+                if embedding and isinstance(embedding, list) and len(embedding) == 1536:
+                    try:
+                        store_in_pinecone(f"{filename}_chunk_{idx}", embedding)
+                        logging.debug(f"Stored chunk {idx} in Pinecone with embedding of size {len(embedding)}")
+                    except Exception as e:
+                        logging.error(f"Error storing chunk {idx} in Pinecone: {str(e)}")
+                else:
+                    logging.warning(f"Invalid embedding for chunk {idx} - received embedding: {embedding}")
+
+            # Upload file to Supabase
             with open(temp_file_path, 'rb') as f:
-                upload_response = supabase.storage.from_(bucket_name).upload(f"{category}/{filename}", f)
+                upload_response = supabase.storage.from_(bucket_name).upload(filename, f)
 
             if upload_response.status_code != 200:
                 error_message = upload_response.json().get('error', {}).get('message', 'Unknown error')
-                logging.error(f"Error uploading file: {error_message}")
+                logging.error(f"Error uploading file to Supabase: {error_message}")
                 return jsonify({"error": "File upload failed", "details": error_message}), 500
 
-            logging.debug(f"File {filename} uploaded successfully to {bucket_name}")
-            return jsonify({"message": "File processed and uploaded to Supabase"}), 200
+            logging.debug(f"File {filename} uploaded successfully to bucket: {bucket_name}")
+            return jsonify({"message": f"File {filename} uploaded to bucket {bucket_name} and processed"}), 200
 
         logging.error("Invalid source type or content")
         return jsonify({"error": "Invalid source type or content"}), 400
@@ -218,6 +258,7 @@ def add_source():
     except Exception as e:
         logging.error(f"Error in add_source: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 # Handle POST request to query the unified namespace in Pinecone
 @bp.route('/query', methods=['POST'])

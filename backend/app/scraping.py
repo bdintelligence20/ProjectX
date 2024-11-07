@@ -19,35 +19,38 @@ visited_urls = set()
 # Initialize tokenizer for handling OpenAI's token limits
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
-# Function to chunk text for embedding
-def chunk_text(text, max_tokens=8192, overlap=100):
+def chunk_text(text, max_tokens=8192, overlap=200):
     sentences = sent_tokenize(text)
     chunks = []
     current_chunk = []
     current_token_count = 0
 
     for sentence in sentences:
-        tokens = tokenizer.encode(" ".join(current_chunk + [sentence]))
-        if len(tokens) <= max_tokens:
-            current_chunk.append(sentence)
-        else:
-            chunks.append(" ".join(current_chunk))
-            current_chunk = [sentence]
+        sentence_tokens = tokenizer.encode(sentence)
+        sentence_token_count = len(sentence_tokens)
 
+        # If adding this sentence would exceed max_tokens, finalize the current chunk
+        if current_token_count + sentence_token_count > max_tokens:
+            chunks.append(" ".join(current_chunk))
+            
+            # Handle overlap
+            overlap_tokens = tokenizer.encode(" ".join(current_chunk[-overlap:]))
+            current_chunk = tokenizer.decode(overlap_tokens).split()
+            current_token_count = len(overlap_tokens)
+
+        # Append the current sentence to the chunk
+        current_chunk.append(sentence)
+        current_token_count += sentence_token_count
+
+    # Add remaining chunk if any
     if current_chunk:
         chunks.append(" ".join(current_chunk))
 
-    sliding_chunks = []
-    for i in range(len(chunks)):
-        if i == 0:
-            sliding_chunks.append(chunks[i])
-        else:
-            prev_chunk_tokens = tokenizer.encode(chunks[i - 1])
-            current_chunk_tokens = tokenizer.encode(chunks[i])
-            combined_chunk = prev_chunk_tokens[-overlap:] + current_chunk_tokens
-            sliding_chunks.append(tokenizer.decode(combined_chunk))
-
-    return sliding_chunks
+    logging.debug(f"Total chunks created: {len(chunks)}")
+    for i, chunk in enumerate(chunks):
+        logging.debug(f"Chunk {i} size: {len(tokenizer.encode(chunk))} tokens")
+    
+    return chunks
 
 # Function to extract text from a PDF
 def extract_text_from_pdf(file_path):
