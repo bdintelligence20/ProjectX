@@ -7,7 +7,6 @@ from app.embeddings import get_embedding
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
-import logging
 import traceback
 from sqlalchemy import select
 import base64
@@ -15,9 +14,11 @@ import os
 from supabase import create_client, Client
 import urllib.parse
 import nltk
+import logging
 
 # Configure logging to show all debug messages
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, force=True)
+
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL")
