@@ -1,11 +1,8 @@
 import os
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
-from app.embeddings import get_embedding
-from app.summarization import summarize_text
-from app.scraping import extract_text_from_file
-import logging  # Import the file extraction method for PDFs, DOCX, CSVs
-
+from app.scraping import get_embedding
+import logging
 
 # Load environment variables
 load_dotenv()
@@ -26,97 +23,62 @@ if index_name not in pc.list_indexes().names():
     )
 
 # Connect to the Pinecone index
-index = pc.Index(index_name)  # Retrieve the index correctly
-def store_in_pinecone(source_id, scraped_data):
+index = pc.Index(index_name)
+
+def store_in_pinecone(source_id, chunks, namespace="global_knowledge_base"):
     """
-    Store embeddings and metadata in Pinecone for each chunk or summarized content.
-    Handles websites, file content (PDF, DOCX, CSV), and text.
+    Store embeddings and text metadata in Pinecone for each chunk.
     """
     try:
-        namespace = "global_knowledge_base"  # Unified namespace for all knowledge
+        for i, chunk in enumerate(chunks):
+            # Generate embedding for the chunk
+            embedding = get_embedding(chunk)
+            if embedding is None:
+                logging.error(f"Failed to generate embedding for chunk {i}. Skipping.")
+                continue
 
-        # Process each chunk
-        if isinstance(scraped_data, list):
-            for i, chunk in enumerate(scraped_data):
-                # Ensure chunk is a string before calling get_embedding
-                if not isinstance(chunk, str):
-                    chunk = str(chunk)
+            # Define a unique vector ID and metadata
+            vector_id = f"{source_id}_chunk_{i}"
+            metadata = {"text": chunk}
 
-                # Get embedding
-                embedding = get_embedding(chunk)
-                if embedding is None:
-                    logging.error(f"Failed to generate embedding for chunk {i}. Skipping.")
-                    continue
-
-                # Check if embedding is a list of floats
-                if isinstance(embedding, list) and all(isinstance(val, float) for val in embedding):
-                    vector_id = f"{source_id}_chunk_{i}"
-                    metadata = {"text": chunk}
-
-                    try:
-                        # Upsert into Pinecone and log the response
-                        response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
-                        logging.debug(f"Pinecone upsert response for chunk {i}: {response}")
-                    except Exception as e:
-                        logging.error(f"Error during Pinecone upsert for chunk {i}: {str(e)}")
-                else:
-                    logging.error(f"Invalid embedding for chunk {i} from {source_id}. Expected list of floats.")
-                    continue
-        else:
-            # Handle single chunk case
-            embedding = get_embedding(scraped_data)
-            if embedding is not None and isinstance(embedding, list) and all(isinstance(val, float) for val in embedding):
-                vector_id = source_id
-                metadata = {"text": scraped_data}
-
-                try:
-                    response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
-                    logging.debug(f"Pinecone upsert response: {response}")
-                except Exception as e:
-                    logging.error(f"Error during Pinecone upsert for single chunk: {str(e)}")
-            else:
-                logging.error(f"Failed to generate valid embedding for {source_id}. Expected list of floats.")
+            try:
+                # Upsert into Pinecone with metadata
+                response = index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
+                logging.debug(f"Upserted chunk {i} into Pinecone: {response}")
+            except Exception as e:
+                logging.error(f"Error during Pinecone upsert for chunk {i}: {str(e)}")
     except Exception as e:
-        logging.error(f"General error in store_in_pinecone: {str(e)}")
-
+        logging.error(f"Error in store_in_pinecone: {str(e)}")
     logging.debug("Completed storing all chunks in Pinecone.")
-
 
 def query_pinecone(user_query, namespace="global_knowledge_base"):
     """
-    Query the unified namespace in Pinecone for the most similar vectors.
+    Query the Pinecone index for the most similar vectors to the user query.
     """
     try:
-        # Get embedding for the user query
+        # Generate embedding for the user query
         query_embedding = get_embedding(user_query)
-
         if query_embedding is None:
             raise ValueError("Failed to generate embedding for the user query.")
 
-        # Query Pinecone for the most similar vectors using the query embedding
+        # Query Pinecone for similar vectors
         results = index.query(
             vector=query_embedding,
-            top_k=10,  # Retrieve the top 10 most relevant vectors for richer context
+            top_k=10,
             namespace=namespace,
-            include_metadata=True  # Ensure the metadata (original text) is included
+            include_metadata=True
         )
 
-        # Log the Pinecone query results
-        print(f"Pinecone query results: {results}")
-
-        # Check if results contain matches
-        if 'matches' not in results or not isinstance(results['matches'], list):
-            print("Unexpected response structure:", results)
-            return []
+        logging.debug(f"Pinecone query results: {results}")
 
         # Extract the original text from the metadata of the results
         matched_texts = [
             match['metadata']['text']
-            for match in results['matches']
+            for match in results.get('matches', [])
             if 'metadata' in match and 'text' in match['metadata']
         ]
         return matched_texts
 
     except Exception as e:
-        print(f"Error querying Pinecone: {str(e)}")
+        logging.error(f"Error querying Pinecone: {str(e)}")
         return None

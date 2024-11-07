@@ -1,58 +1,101 @@
+import spacy
 import PyPDF2
 import docx
 import pandas as pd
-
-# Existing imports
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-import nltk
-from nltk.tokenize import sent_tokenize
-import tiktoken  # For tokenizing
+import tiktoken
+import logging
+import numpy as np
+from openai import OpenAI
+from dotenv import load_dotenv
+import os
+from pinecone import Pinecone, ServerlessSpec
+from supabase import create_client, Client
 
-# Download the necessary NLTK resources (if not already installed)
-nltk.download('punkt')
+# Load environment variables and initialize OpenAI, Pinecone, and Supabase clients
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+pinecone_client = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+# Initialize Supabase client
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
+supabase: Client = create_client(supabase_url, supabase_key)
 
-# A set to keep track of visited URLs to avoid duplication
-visited_urls = set()
+# Pinecone configuration
+index_name = "business-research"
+if index_name not in pinecone_client.list_indexes().names():
+    pinecone_client.create_index(
+        name=index_name,
+        dimension=1536,
+        metric="cosine",
+        spec=ServerlessSpec(cloud="aws", region="us-east-1")
+    )
+index = pinecone_client.Index(index_name)
 
-# Initialize tokenizer for handling OpenAI's token limits
+# Initialize tokenizer and set token limits
 tokenizer = tiktoken.get_encoding("cl100k_base")
+MODEL = "text-embedding-3-small"
+MAX_TOKENS = 1500  # Set a fixed max tokens per chunk
 
-def chunk_text(text, max_tokens=8192, overlap=200):
-    sentences = sent_tokenize(text)
+def get_embedding(text):
+    """Generate an embedding for a text using OpenAI's model."""
+    try:
+        response = client.embeddings.create(input=[text], model=MODEL)
+        if response.data:
+            return response.data[0].embedding
+    except Exception as e:
+        logging.error(f"Error generating embedding: {str(e)}")
+    return None
+
+def chunk_text(text, max_tokens=MAX_TOKENS, overlap_tokens=100):
+    """
+    Chunk text into fixed-size windows with a specified overlap.
+    """
+    tokens = tokenizer.encode(text)
     chunks = []
-    current_chunk = []
-    current_token_count = 0
+    start = 0
 
-    for sentence in sentences:
-        sentence_tokens = tokenizer.encode(sentence)
-        sentence_token_count = len(sentence_tokens)
-
-        # If adding this sentence would exceed max_tokens, finalize the current chunk
-        if current_token_count + sentence_token_count > max_tokens:
-            chunks.append(" ".join(current_chunk))
-            
-            # Handle overlap
-            overlap_tokens = tokenizer.encode(" ".join(current_chunk[-overlap:]))
-            current_chunk = tokenizer.decode(overlap_tokens).split()
-            current_token_count = len(overlap_tokens)
-
-        # Append the current sentence to the chunk
-        current_chunk.append(sentence)
-        current_token_count += sentence_token_count
-
-    # Add remaining chunk if any
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
+    while start < len(tokens):
+        end = start + max_tokens
+        chunk = tokens[start:end]
+        decoded_chunk = tokenizer.decode(chunk)
+        chunks.append(decoded_chunk)
+        start += max_tokens - overlap_tokens  # Shift by max_tokens minus overlap
 
     logging.debug(f"Total chunks created: {len(chunks)}")
-    for i, chunk in enumerate(chunks):
-        logging.debug(f"Chunk {i} size: {len(tokenizer.encode(chunk))} tokens")
-    
     return chunks
 
-# Function to extract text from a PDF
+def store_in_pinecone(source_id, chunks, namespace="global_knowledge_base"):
+    """
+    Store embeddings, text, and metadata in Pinecone for each chunk.
+    """
+    for i, chunk in enumerate(chunks):
+        embedding = get_embedding(chunk)
+        if embedding is None:
+            logging.error(f"Failed to generate embedding for chunk {i}. Skipping.")
+            continue
+        vector_id = f"{source_id}_chunk_{i}"
+        metadata = {"text": chunk}
+        try:
+            index.upsert([(vector_id, embedding, metadata)], namespace=namespace)
+            logging.debug(f"Stored chunk {i} in Pinecone with embedding.")
+        except Exception as e:
+            logging.error(f"Error during Pinecone upsert for chunk {i}: {str(e)}")
+
+def store_in_supabase(file_path, bucket_name, file_name):
+    """
+    Upload the original document to Supabase.
+    """
+    with open(file_path, 'rb') as file:
+        response = supabase.storage.from_(bucket_name).upload(file_name, file)
+        if response.status_code != 200:
+            logging.error(f"Error uploading file to Supabase: {response.json()}")
+        else:
+            logging.debug(f"Uploaded {file_name} to Supabase bucket {bucket_name}.")
+
+# Text extraction functions
 def extract_text_from_pdf(file_path):
     text = ""
     with open(file_path, 'rb') as file:
@@ -61,65 +104,16 @@ def extract_text_from_pdf(file_path):
             text += pdf_reader.pages[page_num].extract_text()
     return text
 
-# Function to extract text from DOCX
 def extract_text_from_docx(file_path):
     doc = docx.Document(file_path)
     return "\n".join([para.text for para in doc.paragraphs])
 
-# Function to extract text from CSV
 def extract_text_from_csv(file_path):
     df = pd.read_csv(file_path)
     return df.to_string()
 
-# Main function to scrape a website
-def scrape_website(url, max_depth=2, depth=0):
-    global visited_count
-    if depth > max_depth or visited_count >= MAX_PAGES or url in visited_urls:
-        return []
-
-    visited_urls.add(url)
-    visited_count += 1
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-
-        # Fallback to UTF-8 encoding
-        response.encoding = response.encoding or 'utf-8'
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        page_text = soup.get_text(separator=' ', strip=True)
-
-        # Chunk and store scraped data
-        scraped_data = chunk_text(page_text)
-
-        # Base URL for handling relative links
-        base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))
-        for link in soup.find_all('a', href=True):
-            link_url = urljoin(base_url, link['href'])
-            if should_visit_link(link_url, base_url):
-                scraped_data.extend(scrape_website(link_url, max_depth, depth + 1))
-
-        return scraped_data
-
-    except requests.RequestException as e:
-        logging.error(f"Error scraping {url}: {str(e)}")
-        return []
-
-# Helper to decide which links to visit
-def should_visit_link(link_url, base_url):
-    parsed_link = urlparse(link_url)
-    parsed_base = urlparse(base_url)
-
-    # Visit only if link is within the same domain and doesn't match exclusion patterns
-    return (
-        parsed_link.netloc == parsed_base.netloc and
-        not link_url.endswith(('.jpg', '.jpeg', '.png', '.gif', '.pdf', '.zip', '.mp4')) and
-        '/contact-us' not in link_url and  # Example filter for repetitive paths
-        link_url not in visited_urls
-    )
-
-# Universal text extraction function
 def extract_text_from_file(file_path, file_type):
+    """Extract text based on file type."""
     if file_type == 'pdf':
         return extract_text_from_pdf(file_path)
     elif file_type == 'docx':
@@ -129,8 +123,57 @@ def extract_text_from_file(file_path, file_type):
     else:
         raise ValueError("Unsupported file type")
 
-# Example usage
-if __name__ == "__main__":
-    url_to_scrape = "https://example.com"
-    full_scraped_data = scrape_website(url_to_scrape)
-    print(f"Scraped {len(full_scraped_data)} pages from {url_to_scrape}")
+# Website scraping function
+def scrape_website(url, max_depth=2, depth=0, visited_urls=set()):
+    if depth > max_depth or url in visited_urls:
+        return []
+
+    visited_urls.add(url)
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        response.encoding = response.encoding or 'utf-8'
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        page_text = soup.get_text(separator=' ', strip=True)
+
+        # Chunk the text from the page
+        scraped_data = chunk_text(page_text)
+
+        # Process links for additional pages
+        base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))
+        for link in soup.find_all('a', href=True):
+            link_url = urljoin(base_url, link['href'])
+            if should_visit_link(link_url, base_url):
+                scraped_data.extend(scrape_website(link_url, max_depth, depth + 1, visited_urls))
+
+        return scraped_data
+
+    except requests.RequestException as e:
+        logging.error(f"Error scraping {url}: {str(e)}")
+        return []
+
+def should_visit_link(link_url, base_url):
+    """Helper to decide if a link should be visited."""
+    parsed_link = urlparse(link_url)
+    parsed_base = urlparse(base_url)
+    return (
+        parsed_link.netloc == parsed_base.netloc and
+        not link_url.endswith(('.jpg', '.jpeg', '.png', '.gif', '.pdf', '.zip', '.mp4')) and
+        '/contact-us' not in link_url and
+        link_url not in visited_urls
+    )
+
+# Main processing function
+def process_source(file_path, file_type, source_id, bucket_name, file_name):
+    # Step 1: Extract text from file
+    text = extract_text_from_file(file_path, file_type)
+
+    # Step 2: Chunk the text
+    chunks = chunk_text(text)
+
+    # Step 3: Create embeddings and store in Pinecone
+    store_in_pinecone(source_id, chunks)
+
+    # Step 4: Store the original document in Supabase
+    store_in_supabase(file_path, bucket_name, file_name)
