@@ -5,7 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 import AuthContext from '../../AuthContext'; // Import AuthContext
 
-axios.defaults.baseURL = 'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev';
+axios.defaults.baseURL = 'https://projectx-53gn.onrender.com';
 
 const modalStyle = {
   position: 'absolute',

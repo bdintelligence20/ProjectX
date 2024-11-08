@@ -23,7 +23,7 @@ app.secret_key = os.getenv('SECRET_KEY')
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
-CORS(app, resources={r"/auth/*": {"origins": "https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev"}})
+CORS(app, resources={r"/auth/*": {"origins": "https://projectx-frontend-3owg.onrender.com"}})
 
 # Create tables for users.db
 with app.app_context():
