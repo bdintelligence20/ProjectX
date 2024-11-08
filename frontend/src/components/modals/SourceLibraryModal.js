@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography, Modal, CircularProgress, List, ListItem, ListItemText } from '@mui/material';
 import axios from 'axios';
 
-axios.defaults.baseURL = 'https://orange-chainsaw-jj4w954456jj2jqqv-5000.app.github.dev';
+axios.defaults.baseURL = 'https://projectx-53gn.onrender.com';
 
 const modalStyle = {
   position: 'absolute',

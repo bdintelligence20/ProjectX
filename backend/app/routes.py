@@ -28,7 +28,7 @@ bp = Blueprint('main', __name__)
 
 # Handle user registration with Supabase
 @bp.route('/auth/register', methods=['POST', 'OPTIONS'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def register():
     if request.method == 'OPTIONS':
         logging.debug("Preflight check passed for registration")
@@ -63,7 +63,7 @@ def register():
 
 # Handle user login with Supabase
 @bp.route('/auth/login', methods=['POST', 'OPTIONS'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def login():
     if request.method == 'OPTIONS':
         logging.debug("Preflight check passed for login")
@@ -98,7 +98,7 @@ def login():
 
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def scrape_and_store():
     try:
         data = request.json
@@ -142,7 +142,7 @@ file_buckets = {
 }
 
 @bp.route('/add-source', methods=['POST'])
-@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
 def add_source():
     logging.debug("Starting add_source route.")
     
@@ -207,7 +207,7 @@ def add_source():
 
 # Handle POST request to query Pinecone
 @bp.route('/query', methods=['POST'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def query():
     try:
         data = request.json
@@ -253,7 +253,7 @@ def list_files(bucket_name, path=''):
     return files
 
 @bp.route('/sources', methods=['GET'])
-@cross_origin(origins='https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev')
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def get_all_sources():
     try:
         # Define buckets for URL and file storage based on category
@@ -316,7 +316,7 @@ def get_all_sources():
 
 
 @bp.route('/qa-tool/upload', methods=['POST'])
-@cross_origin(origins=['https://orange-chainsaw-jj4w954456jj2jqqv-3000.app.github.dev'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
 def upload_and_process_file():
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
