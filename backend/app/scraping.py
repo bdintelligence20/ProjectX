@@ -91,8 +91,10 @@ def store_in_supabase(file_path, bucket_name, file_name):
     """
     with open(file_path, 'rb') as file:
         response = supabase.storage.from_(bucket_name).upload(file_name, file)
-        if response.status_code != 200:
-            logging.error(f"Error uploading file to Supabase: {response.json()}")
+        
+        # Check if response has an error attribute or message instead of status_code
+        if hasattr(response, 'error') and response.error is not None:
+            logging.error(f"Error uploading file to Supabase: {response.error}")
         else:
             logging.debug(f"Uploaded {file_name} to Supabase bucket {bucket_name}.")
 
