@@ -20,3 +20,4 @@ pandas
 requests
 beautifulsoup4
 gunicorn
+pycryptodome

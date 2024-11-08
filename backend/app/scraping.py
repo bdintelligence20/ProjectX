@@ -124,7 +124,10 @@ def extract_text_from_file(file_path, file_type):
         raise ValueError("Unsupported file type")
 
 # Website scraping function
-def scrape_website(url, max_depth=2, depth=0, visited_urls=set()):
+def scrape_website(url, max_depth=2, depth=0, visited_urls=None):
+    if visited_urls is None:
+        visited_urls = set()
+
     if depth > max_depth or url in visited_urls:
         return []
 
@@ -144,7 +147,7 @@ def scrape_website(url, max_depth=2, depth=0, visited_urls=set()):
         base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))
         for link in soup.find_all('a', href=True):
             link_url = urljoin(base_url, link['href'])
-            if should_visit_link(link_url, base_url):
+            if should_visit_link(link_url, base_url, visited_urls):
                 scraped_data.extend(scrape_website(link_url, max_depth, depth + 1, visited_urls))
 
         return scraped_data
@@ -153,7 +156,7 @@ def scrape_website(url, max_depth=2, depth=0, visited_urls=set()):
         logging.error(f"Error scraping {url}: {str(e)}")
         return []
 
-def should_visit_link(link_url, base_url):
+def should_visit_link(link_url, base_url, visited_urls):
     """Helper to decide if a link should be visited."""
     parsed_link = urlparse(link_url)
     parsed_base = urlparse(base_url)
