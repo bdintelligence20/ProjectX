@@ -122,36 +122,39 @@ def extract_text_from_file(file_path, file_type):
         return extract_text_from_csv(file_path)
     else:
         raise ValueError("Unsupported file type")
-
-# Website scraping function
-def scrape_website(url, max_depth=2, depth=0, visited_urls=None):
+        
+# Adjusted website scraping function with limited recursion and chunk control
+def scrape_website(url, max_depth=2, depth=0, visited_urls=None, max_chunks=10):
     if visited_urls is None:
         visited_urls = set()
-
+    
+    # Limit recursion depth
     if depth > max_depth or url in visited_urls:
         return []
 
     visited_urls.add(url)
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=5)  # Set shorter timeout
         response.raise_for_status()
         response.encoding = response.encoding or 'utf-8'
 
         soup = BeautifulSoup(response.text, 'html.parser')
         page_text = soup.get_text(separator=' ', strip=True)
 
-        # Chunk the text from the page
-        scraped_data = chunk_text(page_text)
+        # Chunk the text from the page, limiting chunks
+        scraped_data = chunk_text(page_text)[:max_chunks]
 
-        # Process links for additional pages
+        # Process links for additional pages within chunk limit
         base_url = "{0.scheme}://{0.netloc}".format(urlparse(url))
         for link in soup.find_all('a', href=True):
             link_url = urljoin(base_url, link['href'])
             if should_visit_link(link_url, base_url, visited_urls):
-                scraped_data.extend(scrape_website(link_url, max_depth, depth + 1, visited_urls))
-
-        return scraped_data
-
+                # Extend only if max_chunks not yet reached
+                if len(scraped_data) < max_chunks:
+                    scraped_data.extend(
+                        scrape_website(link_url, max_depth, depth + 1, visited_urls, max_chunks)
+                    )
+        return scraped_data[:max_chunks]  # Limit total chunks returned
     except requests.RequestException as e:
         logging.error(f"Error scraping {url}: {str(e)}")
         return []
@@ -166,6 +169,7 @@ def should_visit_link(link_url, base_url, visited_urls):
         '/contact-us' not in link_url and
         link_url not in visited_urls
     )
+
 
 # Main processing function
 def process_source(file_path, file_type, source_id, bucket_name, file_name):
