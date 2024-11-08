@@ -18,6 +18,7 @@ from supabase import create_client, Client
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 pinecone_client = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
@@ -112,6 +113,10 @@ def extract_text_from_csv(file_path):
     df = pd.read_csv(file_path)
     return df.to_string()
 
+def extract_text_from_txt(file_path):
+    with open(file_path, 'r') as file:
+        return file.read()
+
 def extract_text_from_file(file_path, file_type):
     """Extract text based on file type."""
     if file_type == 'pdf':
@@ -120,6 +125,8 @@ def extract_text_from_file(file_path, file_type):
         return extract_text_from_docx(file_path)
     elif file_type == 'csv':
         return extract_text_from_csv(file_path)
+    elif file_type == 'txt':
+        return extract_text_from_txt(file_path)
     else:
         raise ValueError("Unsupported file type")
         
