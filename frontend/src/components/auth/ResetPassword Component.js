@@ -1,47 +1,68 @@
-import React, { useState, useContext } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import AuthContext from '../../AuthContext';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AuthLayout from '../layout/AuthLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
+import { supabase } from '../../supabaseClient';
 
-export default function Register() {
-  const { register } = useContext(AuthContext);
-  const [email, setEmail] = useState('');
+export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = async (e) => {
+  useEffect(() => {
+    // Check if we have a recovery token
+    const hash = window.location.hash;
+    if (!hash || !hash.includes('type=recovery')) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
       setError("Passwords don't match");
       return;
     }
+
+    setLoading(true);
+    setError(null);
+
     try {
-      await register(email, password);
-      navigate('/dashboard');
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (error) throw error;
+      
+      // Password updated successfully
+      navigate('/login', { 
+        state: { message: 'Password updated successfully. Please log in with your new password.' }
+      });
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <AuthLayout
       quote={{
-        title: "Start Your Journey",
-        subtitle: "Create an account to get started with all the features and tools you need."
+        title: "Create New Password",
+        subtitle: "Choose a strong password to keep your account secure."
       }}
     >
       <div className="space-y-6">
         <div className="space-y-2">
-          <h2 className="text-3xl font-bold">Create an Account</h2>
+          <h2 className="text-3xl font-bold">Reset Password</h2>
           <p className="text-gray-500">
-            Fill in your details to create your account
+            Enter your new password below
           </p>
         </div>
 
@@ -51,31 +72,16 @@ export default function Register() {
           </Alert>
         )}
 
-        <form onSubmit={handleRegister} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full"
-              required
-            />
-          </div>
-
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="password">
-              Password
+              New Password
             </label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Create a password"
+                placeholder="Enter new password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pr-10"
@@ -97,12 +103,12 @@ export default function Register() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="confirmPassword">
-              Confirm Password
+              Confirm New Password
             </label>
             <Input
               id="confirmPassword"
               type="password"
-              placeholder="Confirm your password"
+              placeholder="Confirm new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full"
@@ -110,31 +116,14 @@ export default function Register() {
             />
           </div>
 
-          <Button type="submit" className="w-full">
-            Create Account
-          </Button>
-
           <Button
-            type="button"
-            variant="outline"
+            type="submit"
             className="w-full"
-            onClick={() => {/* Implement Google Sign In */}}
+            disabled={loading}
           >
-            <img
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-              alt="Google"
-              className="w-5 h-5 mr-2"
-            />
-            Sign Up with Google
+            {loading ? 'Updating Password...' : 'Update Password'}
           </Button>
         </form>
-
-        <p className="text-center text-sm text-gray-600">
-          Already have an account?{' '}
-          <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">
-            Sign In
-          </Link>
-        </p>
       </div>
     </AuthLayout>
   );
