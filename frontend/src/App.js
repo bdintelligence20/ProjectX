@@ -5,7 +5,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from './styles/theme';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import ForgotPassword from './components/auth/ForgotPassword Component';
+import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
 import Dashboard from './components/Dashboard';
 import AuthContext, { AuthProvider } from './AuthContext';
