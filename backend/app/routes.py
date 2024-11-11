@@ -26,12 +26,11 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 bp = Blueprint('main', __name__)
 
-# Handle user registration with Supabase
+
 @bp.route('/auth/register', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def register():
     if request.method == 'OPTIONS':
-        logging.debug("Preflight check passed for registration")
         return jsonify({"message": "Preflight check passed"}), 200
 
     try:
@@ -40,7 +39,6 @@ def register():
         password = data.get('password')
 
         if not email or not password:
-            logging.error("Email and password are required for registration")
             return jsonify({"error": "Email and password are required"}), 400
 
         # Register user via Supabase
@@ -50,23 +48,18 @@ def register():
         })
 
         if response.get('error'):
-            logging.error(f"Error registering user: {response['error']}")
             return jsonify({"error": response['error']['message']}), 400
 
-        logging.info(f"User registered successfully: email={email}")
         return jsonify({"message": "User registered successfully"}), 201
 
     except Exception as e:
         logging.error(f"Internal server error: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
-
-# Handle user login with Supabase
 @bp.route('/auth/login', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def login():
     if request.method == 'OPTIONS':
-        logging.debug("Preflight check passed for login")
         return jsonify({"message": "Preflight check passed"}), 200
 
     try:
@@ -75,26 +68,76 @@ def login():
         password = data.get('password')
 
         if not email or not password:
-            logging.error("Email and password are required for login")
             return jsonify({"error": "Email and password are required"}), 400
 
         # Log in user via Supabase
-        response = supabase.auth.sign_in({
+        response = supabase.auth.sign_in_with_password({
             'email': email,
             'password': password,
         })
 
         if response.get('error'):
-            logging.error(f"Error logging in user: {response['error']}")
             return jsonify({"error": response['error']['message']}), 401
 
-        logging.info(f"User logged in successfully: email={email}")
         return jsonify(response['session']), 200
 
     except Exception as e:
         logging.error(f"Internal server error: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
+@bp.route('/auth/reset-password', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def reset_password_request():
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "Preflight check passed"}), 200
+
+    try:
+        data = request.json
+        email = data.get('email')
+
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+
+        # Send password reset email via Supabase
+        response = supabase.auth.reset_password_email(email)
+
+        if response.get('error'):
+            return jsonify({"error": response['error']['message']}), 400
+
+        return jsonify({"message": "Password reset email sent"}), 200
+
+    except Exception as e:
+        logging.error(f"Internal server error: {traceback.format_exc()}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+@bp.route('/auth/update-password', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def update_password():
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "Preflight check passed"}), 200
+
+    try:
+        data = request.json
+        new_password = data.get('password')
+        access_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+
+        if not new_password or not access_token:
+            return jsonify({"error": "Password and authentication token are required"}), 400
+
+        # Update password via Supabase
+        response = supabase.auth.update_user(
+            {'password': new_password},
+            access_token
+        )
+
+        if response.get('error'):
+            return jsonify({"error": response['error']['message']}), 400
+
+        return jsonify({"message": "Password updated successfully"}), 200
+
+    except Exception as e:
+        logging.error(f"Internal server error: {traceback.format_exc()}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 # Handle POST request to scrape and store data in Pinecone
 @bp.route('/scrape', methods=['POST'])

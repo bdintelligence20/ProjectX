@@ -2,11 +2,13 @@
 import React, { useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
-import theme from './styles/theme'; // Import your custom theme
+import theme from './styles/theme';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import Dashboard from './components/Dashboard'; // Import your Dashboard component
-import AuthContext, { AuthProvider } from './AuthContext'; // Import AuthContext and Provider
+import ForgotPassword from './components/auth/ForgotPassword Component';
+import ResetPassword from './components/auth/ResetPassword';
+import Dashboard from './components/Dashboard';
+import AuthContext, { AuthProvider } from './AuthContext';
 import { CircularProgress } from '@mui/material';
 
 // ProtectedRoute component for route guarding
@@ -14,7 +16,11 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
 
   if (loading) {
-    return <CircularProgress />; // Show loading indicator while checking auth state
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <CircularProgress />
+      </div>
+    );
   }
 
   return user ? children : <Navigate to="/login" />;
@@ -26,10 +32,22 @@ function App() {
       <ThemeProvider theme={theme}>
         <Router>
           <Routes>
+            {/* Auth Routes */}
             <Route path="/" element={<Navigate to="/login" />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            {/* Protected Routes */}
+            <Route
+              path="/dashboard/*"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </Router>
       </ThemeProvider>
