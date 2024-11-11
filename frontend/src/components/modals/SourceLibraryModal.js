@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Modal, CircularProgress, Grid, Paper, List, ListItem, Avatar, ListItemText, ListItemAvatar, IconButton } from '@mui/material';
+import { Box, Typography, CircularProgress, Grid, Paper, List, ListItem, Avatar, ListItemText, ListItemAvatar, IconButton } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
+import DescriptionIcon from '@mui/icons-material/Description';
+import LanguageIcon from '@mui/icons-material/Language';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import axios from 'axios';
-
-axios.defaults.baseURL = 'https://projectx-53gn.onrender.com';
 
 const modalStyle = {
   position: 'absolute',
@@ -18,6 +18,8 @@ const modalStyle = {
   borderRadius: '16px',
   padding: '40px',
   outline: 'none',
+  maxHeight: '80vh',
+  overflow: 'auto'
 };
 
 const folderStyle = {
@@ -26,6 +28,7 @@ const folderStyle = {
   borderRadius: '8px',
   backgroundColor: '#f3f4f6',
   cursor: 'pointer',
+  transition: 'background-color 0.2s ease',
   '&:hover': {
     backgroundColor: '#e0e0e0',
   },
@@ -34,7 +37,10 @@ const folderStyle = {
 export default function SourceLibraryModal({ open, onClose }) {
   const [sources, setSources] = useState({ files: {}, urls: {} });
   const [loading, setLoading] = useState(true);
-  const [currentFolder, setCurrentFolder] = useState(null);
+  const [currentView, setCurrentView] = useState({
+    type: null, // 'files' or 'urls'
+    category: null
+  });
 
   useEffect(() => {
     if (open) {
@@ -44,8 +50,6 @@ export default function SourceLibraryModal({ open, onClose }) {
           const response = await axios.get('/sources');
           if (response.status === 200) {
             setSources(response.data);
-          } else {
-            console.error('Failed to fetch sources, status code:', response.status);
           }
         } catch (error) {
           console.error('Error fetching sources:', error);
@@ -58,91 +62,105 @@ export default function SourceLibraryModal({ open, onClose }) {
     }
   }, [open]);
 
-  const calculateFolderSize = (category) => {
-    return sources.files[category]?.reduce((acc, file) => acc + (file.size || 0), 0);
-  };
-
-  const getFormattedSize = (size) => {
-    if (!size) return '0 MB';
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const handleFolderClick = (category) => {
-    setCurrentFolder(category);
+  const handleFolderClick = (type, category) => {
+    setCurrentView({
+      type,
+      category
+    });
   };
 
   const handleBackClick = () => {
-    setCurrentFolder(null);
+    setCurrentView({
+      type: null,
+      category: null
+    });
+  };
+
+  // Format the folder/category name for display
+  const formatName = (name) => {
+    return name.replace(/_/g, ' ');
+  };
+
+  // Get the total number of items in a category
+  const getCategoryItemCount = (type, category) => {
+    return sources[type][category]?.length || 0;
+  };
+
+  const renderItemList = () => {
+    const items = sources[currentView.type][currentView.category] || [];
+    
+    return (
+      <List>
+        {items.map((item, index) => (
+          <ListItem key={index}>
+            <ListItemAvatar>
+              <Avatar>
+                {currentView.type === 'urls' ? <LanguageIcon /> : <DescriptionIcon />}
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={item.name}
+              secondary={`Added: ${new Date().toLocaleDateString()}`} // You can add actual date if available
+            />
+          </ListItem>
+        ))}
+      </List>
+    );
+  };
+
+  const renderFolderGrid = () => {
+    const allCategories = [
+      ...Object.keys(sources.files).map(category => ({ type: 'files', category })),
+      ...Object.keys(sources.urls).map(category => ({ type: 'urls', category }))
+    ];
+
+    return (
+      <Grid container spacing={3}>
+        {allCategories.map(({ type, category }) => (
+          <Grid item xs={12} sm={6} md={4} key={`${type}-${category}`}>
+            <Paper
+              sx={folderStyle}
+              elevation={3}
+              onClick={() => handleFolderClick(type, category)}
+            >
+              <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
+                <FolderIcon sx={{ fontSize: 40, color: type === 'urls' ? '#2196f3' : '#ff9800' }} />
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                  {formatName(category)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {getCategoryItemCount(type, category)} {type === 'urls' ? 'URLs' : 'Files'}
+                </Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+    );
   };
 
   return (
-    <Modal open={open} onClose={onClose}>
-      <Box sx={modalStyle}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
-          {currentFolder ? (
-            <IconButton onClick={handleBackClick} sx={{ marginRight: '10px' }}>
-              <ArrowBackIcon />
-            </IconButton>
-          ) : null}
-          Source Library
-        </Typography>
-        {loading ? (
-          <CircularProgress />
-        ) : (
-          <Box>
-            {currentFolder ? (
-              // File List View
-              <List>
-                {sources.files[currentFolder].map((file, index) => (
-                  <ListItem key={index}>
-                    <ListItemAvatar>
-                      <Avatar>
-                        <FolderIcon />
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={file.name}
-                      secondary={`Uploaded by: ${file.uploadedBy || 'Unknown'}`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              // Folder Grid View
-              <Grid container spacing={3}>
-                {Object.keys(sources.files).map((category) => (
-                  <Grid item xs={12} sm={6} md={4} key={category}>
-                    <Paper
-                      sx={folderStyle}
-                      elevation={3}
-                      onClick={() => handleFolderClick(category)}
-                    >
-                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                        {category.replace(/_/g, ' ')}
-                      </Typography>
-                      <Typography variant="body2">
-                        {sources.files[category].length} Files • {getFormattedSize(calculateFolderSize(category))}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                ))}
-                {Object.keys(sources.urls).map((category) => (
-                  <Grid item xs={12} sm={6} md={4} key={category}>
-                    <Paper sx={folderStyle} elevation={3}>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                        {category.replace(/_/g, ' ')}
-                      </Typography>
-                      <Typography variant="body2">
-                        {sources.urls[category].length} URLs
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                ))}
-              </Grid>
-            )}
-          </Box>
+    <Box sx={modalStyle}>
+      <Box display="flex" alignItems="center" gap={2} mb={3}>
+        {currentView.category && (
+          <IconButton onClick={handleBackClick}>
+            <ArrowBackIcon />
+          </IconButton>
         )}
+        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+          {currentView.category ? formatName(currentView.category) : 'Source Library'}
+        </Typography>
       </Box>
-    </Modal>
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+          <CircularProgress />
+        </Box>
+      ) : currentView.category ? (
+        renderItemList()
+      ) : (
+        renderFolderGrid()
+      )}
+    </Box>
   );
 }
