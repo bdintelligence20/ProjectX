@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Modal, CircularProgress, Grid, Paper } from '@mui/material';
+import { Box, Typography, Modal, CircularProgress, Grid, Paper, List, ListItem, Avatar, ListItemText, ListItemAvatar, IconButton } from '@mui/material';
+import FolderIcon from '@mui/icons-material/Folder';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import axios from 'axios';
 
 axios.defaults.baseURL = 'https://projectx-53gn.onrender.com';
@@ -32,6 +34,7 @@ const folderStyle = {
 export default function SourceLibraryModal({ open, onClose }) {
   const [sources, setSources] = useState({ files: {}, urls: {} });
   const [loading, setLoading] = useState(true);
+  const [currentFolder, setCurrentFolder] = useState(null);
 
   useEffect(() => {
     if (open) {
@@ -56,8 +59,6 @@ export default function SourceLibraryModal({ open, onClose }) {
   }, [open]);
 
   const calculateFolderSize = (category) => {
-    // Placeholder function for calculating folder size, assuming file objects have a 'size' property
-    // Replace with actual size calculation logic if available
     return sources.files[category]?.reduce((acc, file) => acc + (file.size || 0), 0);
   };
 
@@ -66,44 +67,80 @@ export default function SourceLibraryModal({ open, onClose }) {
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handleFolderClick = (category) => {
+    setCurrentFolder(category);
+  };
+
+  const handleBackClick = () => {
+    setCurrentFolder(null);
+  };
+
   return (
     <Modal open={open} onClose={onClose}>
       <Box sx={modalStyle}>
         <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>
+          {currentFolder ? (
+            <IconButton onClick={handleBackClick} sx={{ marginRight: '10px' }}>
+              <ArrowBackIcon />
+            </IconButton>
+          ) : null}
           Source Library
         </Typography>
         {loading ? (
           <CircularProgress />
         ) : (
-          <Grid container spacing={3}>
-            {/* Display Files as folders */}
-            {Object.keys(sources.files).map((category) => (
-              <Grid item xs={12} sm={6} md={4} key={category}>
-                <Paper sx={folderStyle} elevation={3}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    {category.replace(/_/g, ' ')}
-                  </Typography>
-                  <Typography variant="body2">
-                    {sources.files[category].length} Files • {getFormattedSize(calculateFolderSize(category))}
-                  </Typography>
-                </Paper>
+          <Box>
+            {currentFolder ? (
+              // File List View
+              <List>
+                {sources.files[currentFolder].map((file, index) => (
+                  <ListItem key={index}>
+                    <ListItemAvatar>
+                      <Avatar>
+                        <FolderIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={file.name}
+                      secondary={`Uploaded by: ${file.uploadedBy || 'Unknown'}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              // Folder Grid View
+              <Grid container spacing={3}>
+                {Object.keys(sources.files).map((category) => (
+                  <Grid item xs={12} sm={6} md={4} key={category}>
+                    <Paper
+                      sx={folderStyle}
+                      elevation={3}
+                      onClick={() => handleFolderClick(category)}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                        {category.replace(/_/g, ' ')}
+                      </Typography>
+                      <Typography variant="body2">
+                        {sources.files[category].length} Files • {getFormattedSize(calculateFolderSize(category))}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                ))}
+                {Object.keys(sources.urls).map((category) => (
+                  <Grid item xs={12} sm={6} md={4} key={category}>
+                    <Paper sx={folderStyle} elevation={3}>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                        {category.replace(/_/g, ' ')}
+                      </Typography>
+                      <Typography variant="body2">
+                        {sources.urls[category].length} URLs
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                ))}
               </Grid>
-            ))}
-            
-            {/* Display URLs as folders */}
-            {Object.keys(sources.urls).map((category) => (
-              <Grid item xs={12} sm={6} md={4} key={category}>
-                <Paper sx={folderStyle} elevation={3}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    {category.replace(/_/g, ' ')}
-                  </Typography>
-                  <Typography variant="body2">
-                    {sources.urls[category].length} URLs
-                  </Typography>
-                </Paper>
-              </Grid>
-            ))}
-          </Grid>
+            )}
+          </Box>
         )}
       </Box>
     </Modal>
