@@ -10,7 +10,7 @@ import {
   ListItemText,
   ListItemAvatar,
   IconButton,
-  Grid2,
+  Grid,
   Stack,
 } from '@mui/material';
 import {
@@ -94,9 +94,9 @@ export default function SourceLibraryModal({ onClose }) {
     ];
 
     return (
-      <Grid2 container spacing={3}>
+      <Grid container spacing={3}>
         {allCategories.map(({ type, category }) => (
-          <Grid2 xs={12} sm={6} md={4} key={`${type}-${category}`}>
+          <Grid xs={12} sm={6} md={4} key={`${type}-${category}`}>
             <Paper
               elevation={0}
               onClick={() => setCurrentView({ type, category })}
@@ -130,9 +130,9 @@ export default function SourceLibraryModal({ onClose }) {
                 </Typography>
               </Stack>
             </Paper>
-          </Grid2>
+          </Grid>
         ))}
-      </Grid2>
+      </Grid>
     );
   };
 
