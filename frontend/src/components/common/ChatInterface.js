@@ -22,6 +22,7 @@ export default function ChatInterface({ selectedSessionId }) {
   const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
+  const [firstLoad, setFirstLoad] = useState(true);
 
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -29,10 +30,17 @@ export default function ChatInterface({ selectedSessionId }) {
     severity: 'info'
   });
 
+  // Effect for handling session changes
   useEffect(() => {
     if (selectedSessionId) {
+      console.log('Selected session changed:', selectedSessionId);
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
+    } else if (firstLoad) {
+      setFirstLoad(false);
+    } else {
+      setChatHistory([]);
+      setCurrentSessionId(null);
     }
   }, [selectedSessionId]);
 
@@ -47,6 +55,8 @@ export default function ChatInterface({ selectedSessionId }) {
   const loadChatHistory = async (sessionId) => {
     try {
       setLoading(true);
+      console.log('Loading chat history for session:', sessionId);
+
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
@@ -54,6 +64,8 @@ export default function ChatInterface({ selectedSessionId }) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
+
+      console.log('Loaded messages:', data);
       setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -74,7 +86,7 @@ export default function ChatInterface({ selectedSessionId }) {
         .insert([
           { 
             user_id: user.id,
-            title: `Chat started on ${new Date().toLocaleString()}`
+            title: `Chat ${new Date().toLocaleString()}`
           }
         ])
         .select()
@@ -99,19 +111,31 @@ export default function ChatInterface({ selectedSessionId }) {
       const sessionId = currentSessionId || await createNewSession();
 
       // Add user message to UI immediately
-      const userMessage = { role: "user", content: chatInput };
-      setChatHistory(prev => [...prev, userMessage]);
+      const newUserMessage = {
+        role: "user",
+        content: chatInput,
+        session_id: sessionId,
+        created_at: new Date().toISOString()
+      };
+      
+      setChatHistory(prev => [...prev, newUserMessage]);
 
       // Store user message in Supabase
-      await supabase
+      const { error: userMessageError } = await supabase
         .from('chat_messages')
-        .insert([
-          {
-            session_id: sessionId,
-            role: 'user',
-            content: chatInput
-          }
-        ]);
+        .insert([{
+          session_id: sessionId,
+          role: 'user',
+          content: chatInput
+        }]);
+
+      if (userMessageError) throw userMessageError;
+
+      // Update session's updated_at timestamp
+      await supabase
+        .from('chat_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', sessionId);
 
       // Send query to backend
       const response = await axios.post('/query', {
@@ -121,20 +145,27 @@ export default function ChatInterface({ selectedSessionId }) {
       });
 
       // Add system response to UI
-      const systemMessage = { role: "system", content: response.data.answer };
-      setChatHistory(prev => [...prev, systemMessage]);
+      const newSystemMessage = {
+        role: "system",
+        content: response.data.answer,
+        session_id: sessionId,
+        created_at: new Date().toISOString()
+      };
+      
+      setChatHistory(prev => [...prev, newSystemMessage]);
 
       // Store system response in Supabase
-      await supabase
+      const { error: systemMessageError } = await supabase
         .from('chat_messages')
-        .insert([
-          {
-            session_id: sessionId,
-            role: 'system',
-            content: response.data.answer
-          }
-        ]);
+        .insert([{
+          session_id: sessionId,
+          role: 'system',
+          content: response.data.answer
+        }]);
 
+      if (systemMessageError) throw systemMessageError;
+
+      // Clear input
       setChatInput('');
     } catch (error) {
       console.error('Error in chat submission:', error);
@@ -148,14 +179,40 @@ export default function ChatInterface({ selectedSessionId }) {
     }
   };
 
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      handleChatSubmit();
-    }
-  };
+  // Set up real-time subscription for messages
+  useEffect(() => {
+    if (!currentSessionId) return;
 
-  // Rest of your render code remains the same...
+    const channel = supabase
+      .channel(`chat_messages:${currentSessionId}`)
+      .on('postgres_changes', 
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `session_id=eq.${currentSessionId}`
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          if (payload.new) {
+            setChatHistory(prev => {
+              // Check if message already exists
+              const exists = prev.some(msg => msg.id === payload.new.id);
+              if (!exists) {
+                return [...prev, payload.new];
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [currentSessionId]);
+
   return (
     <Box
       flex={1}
@@ -190,7 +247,7 @@ export default function ChatInterface({ selectedSessionId }) {
           <>
             {chatHistory.map((message, index) => (
               <Box 
-                key={index} 
+                key={`${message.id || index}-${message.created_at}`}
                 mb={2}
                 display="flex"
                 justifyContent={message.role === "user" ? "flex-end" : "flex-start"}
@@ -235,7 +292,12 @@ export default function ChatInterface({ selectedSessionId }) {
           placeholder="Type your message..."
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleChatSubmit();
+            }
+          }}
           disabled={loading}
           InputProps={{
             startAdornment: (
