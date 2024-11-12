@@ -1,190 +1,287 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Typography,
-  TextField,
-  Button,
-  Paper,
-  IconButton,
-  Divider,
-  Avatar
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import { 
+  Box, 
+  Typography, 
+  TextField, 
+  InputAdornment, 
+  Button, 
+  CircularProgress,
+  Snackbar,
+  Alert
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
 import SearchIcon from '@mui/icons-material/Search';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import PersonIcon from '@mui/icons-material/Person';
+import SendIcon from '@mui/icons-material/Send';
+import AuthContext from '../../AuthContext';
+import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 
-export default function ChatInterface() {
+export default function ChatInterface({ selectedSessionId = null }) {
+  const { user } = useContext(AuthContext);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const chatEndRef = useRef(null);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
 
-  const handleChatSubmit = async () => {
-    if (!chatInput.trim()) return;
+  // Scroll to bottom of chat
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
+
+  // Initialize or load session
+  useEffect(() => {
+    if (user) {
+      if (selectedSessionId) {
+        loadChatHistory(selectedSessionId);
+      } else {
+        initializeNewSession();
+      }
+    }
+  }, [user, selectedSessionId]);
+
+  const initializeNewSession = async () => {
     try {
-      // Add user message
-      setChatHistory(prev => [...prev, { role: "user", content: chatInput }]);
-      setIsTyping(true);
+      const title = `Chat ${new Date().toLocaleString()}`;
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('chat_sessions')
+        .insert([{ 
+          user_id: user.id,
+          title
+        }])
+        .select('id')
+        .single();
 
-      // Prepare and send request
-      const payload = {
-        userQuestion: chatInput,
-        searchScope: "whole",
-      };
-
-      const response = await axios.post('/query', payload);
-
-      // Add AI response
-      setChatHistory(prev => [...prev, { role: "system", content: response.data.answer }]);
-      setChatInput('');
+      if (sessionError) throw sessionError;
+      
+      setCurrentSessionId(sessionData.id);
+      setChatHistory([]);
+      
+      setSnackbar({
+        open: true,
+        message: 'New chat session started',
+        severity: 'success'
+      });
     } catch (error) {
-      console.error('Error:', error);
-      setChatHistory(prev => [
-        ...prev,
-        { role: "system", content: "Sorry, I encountered an error. Please try again." }
-      ]);
-    } finally {
-      setIsTyping(false);
+      console.error('Error creating new session:', error);
+      setError('Failed to create new chat session');
+      setSnackbar({
+        open: true,
+        message: 'Failed to create new chat session',
+        severity: 'error'
+      });
     }
   };
 
-  const MessageBubble = ({ message, isUser }) => (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        mb: 2,
-        ...(isUser && { flexDirection: 'row-reverse' })
-      }}
-    >
-      <Avatar
-        sx={{
-          bgcolor: isUser ? 'primary.main' : 'secondary.main',
-          width: 32,
-          height: 32,
-          mr: isUser ? 0 : 1,
-          ml: isUser ? 1 : 0
-        }}
-      >
-        {isUser ? <PersonIcon /> : <SmartToyIcon />}
-      </Avatar>
-      <Paper
-        elevation={1}
-        sx={{
-          p: 2,
-          maxWidth: '70%',
-          borderRadius: 2,
-          bgcolor: isUser ? 'primary.light' : 'background.paper',
-          color: isUser ? 'primary.contrastText' : 'text.primary'
-        }}
-      >
-        <Typography variant="body1">
-          {message.content}
-        </Typography>
-      </Paper>
-    </Box>
-  );
+  const loadChatHistory = async (sessionId) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      setChatHistory(data);
+      setCurrentSessionId(sessionId);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      setError('Failed to load chat history');
+      setSnackbar({
+        open: true,
+        message: 'Failed to load chat history',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim() || !currentSessionId || loading) return;
+
+    try {
+      setLoading(true);
+      
+      // Add user message to UI immediately
+      const userMessage = { role: "user", content: chatInput };
+      setChatHistory(prev => [...prev, userMessage]);
+
+      // Send query to backend
+      const response = await axios.post('/query', {
+        userQuestion: chatInput,
+        sessionId: currentSessionId,
+        searchScope: "whole"
+      });
+
+      // Add system response to UI
+      const systemMessage = { role: "system", content: response.data.answer };
+      setChatHistory(prev => [...prev, systemMessage]);
+
+      setChatInput('');
+    } catch (error) {
+      console.error('Error in chat submission:', error);
+      const errorMessage = { 
+        role: "system", 
+        content: "Error occurred while processing your request. Please try again." 
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
+      
+      setSnackbar({
+        open: true,
+        message: 'Failed to process your request',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleChatSubmit();
+    }
+  };
 
   return (
     <Box
-      sx={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        bgcolor: 'background.default'
-      }}
+      flex={1}
+      display="flex"
+      flexDirection="column"
+      height="100vh"
+      backgroundColor="#fafafa"
     >
-      {/* Chat Header */}
-      <Box
+      {/* Chat Messages Area */}
+      <Box 
+        flex="1 1 auto" 
+        p={2} 
+        overflow="auto"
         sx={{
-          p: 2,
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.paper'
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: '#f1f1f1',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: '#888',
+            borderRadius: '4px',
+          },
         }}
       >
-        <Typography variant="h6">Chat Assistant</Typography>
-      </Box>
-
-      {/* Messages Area */}
-      <Box
-        sx={{
-          flex: 1,
-          p: 3,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {chatHistory.map((message, index) => (
-          <MessageBubble
-            key={index}
-            message={message}
-            isUser={message.role === 'user'}
-          />
-        ))}
-        {isTyping && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-            <SmartToyIcon fontSize="small" />
-            <Typography variant="body2">Typing...</Typography>
+        {loading && chatHistory.length === 0 ? (
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <CircularProgress />
           </Box>
+        ) : (
+          <>
+            {chatHistory.map((message, index) => (
+              <Box 
+                key={index} 
+                mb={2}
+                display="flex"
+                justifyContent={message.role === "user" ? "flex-end" : "flex-start"}
+              >
+                <Box
+                  sx={{
+                    maxWidth: '70%',
+                    backgroundColor: message.role === "user" ? '#007AFF' : '#f0f0f0',
+                    color: message.role === "user" ? 'white' : 'black',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    marginLeft: message.role === "user" ? '30%' : '0',
+                    marginRight: message.role === "user" ? '0' : '30%',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  <Typography variant="body1">
+                    {message.content}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+            <div ref={chatEndRef} />
+          </>
         )}
       </Box>
 
       {/* Input Area */}
-      <Box
-        sx={{
-          p: 2,
-          borderTop: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.paper'
-        }}
+      <Box 
+        flex="0 1 auto" 
+        p={2} 
+        display="flex" 
+        alignItems="center" 
+        borderTop="1px solid #ddd"
+        backgroundColor="#ffffff"
       >
-        <Box
-          sx={{
-            display: 'flex',
-            gap: 1
+        <TextField
+          fullWidth
+          multiline
+          maxRows={4}
+          variant="outlined"
+          placeholder="Type your message..."
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          onKeyPress={handleKeyPress}
+          disabled={loading}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon color="action" />
+              </InputAdornment>
+            ),
           }}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '12px',
+            }
+          }}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleChatSubmit}
+          disabled={loading || !chatInput.trim()}
+          sx={{ 
+            ml: 1,
+            borderRadius: '12px',
+            minWidth: '100px',
+            height: '56px'
+          }}
+          endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
         >
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Type your message..."
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
-            size="medium"
-            InputProps={{
-              startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
-            }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-              }
-            }}
-          />
-          <IconButton
-            color="primary"
-            onClick={handleChatSubmit}
-            disabled={!chatInput.trim()}
-            sx={{
-              bgcolor: 'primary.main',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'primary.dark',
-              },
-              '&.Mui-disabled': {
-                bgcolor: 'action.disabledBackground',
-              }
-            }}
-          >
-            <SendIcon />
-          </IconButton>
-        </Box>
+          Send
+        </Button>
       </Box>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

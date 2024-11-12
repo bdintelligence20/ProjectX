@@ -255,16 +255,45 @@ def query():
     try:
         data = request.json
         user_question = data.get('userQuestion')
+        session_id = data.get('sessionId')  # Get session_id from request
 
-        if not user_question:
-            logging.error("User question is required")
-            return jsonify({"error": "User question is required"}), 400
+        if not user_question or not session_id:
+            logging.error("User question and session ID are required")
+            return jsonify({"error": "User question and session ID are required"}), 400
 
+        # Step 1: Query Pinecone for relevant context
         matched_texts = query_pinecone(user_question, namespace="global_knowledge_base")
 
         if matched_texts:
+            # Step 2: Get response from LLM
             response = query_llm(matched_texts, user_question)
-            return jsonify({"answer": response, "sources": matched_texts}), 200
+
+            try:
+                # Step 3: Store the question and answer in Supabase
+                supabase.table('chat_messages').insert([
+                    {
+                        'session_id': session_id,
+                        'role': 'user',
+                        'content': user_question
+                    }
+                ]).execute()
+
+                supabase.table('chat_messages').insert([
+                    {
+                        'session_id': session_id,
+                        'role': 'system',
+                        'content': response
+                    }
+                ]).execute()
+
+            except Exception as e:
+                logging.error(f"Error storing chat messages in Supabase: {str(e)}")
+                # Continue even if storage fails - prioritize responding to user
+
+            return jsonify({
+                "answer": response, 
+                "sources": matched_texts
+            }), 200
 
         logging.info("No relevant information found.")
         return jsonify({"answer": "No relevant information found."}), 404
@@ -272,7 +301,7 @@ def query():
     except Exception as e:
         logging.error(f"Failed to query data: {str(e)}")
         return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
-
+        
 # Function to recursively list all files in a bucket
 def list_files(bucket_name, path=''):
     files = []

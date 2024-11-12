@@ -1,189 +1,133 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Typography,
-  Avatar,
-  IconButton,
-  CircularProgress,
-  Container,
-  Grid, // Import as MuiGrid to be explicit
-  Card,
-  CardContent,
-  useTheme,
-} from '@mui/material';
-import FeedbackIcon from '@mui/icons-material/Feedback';
+import AuthContext from '../AuthContext';
+import { Box, Typography, Avatar, IconButton, CircularProgress, Grid } from '@mui/material';
 import Sidebar from './common/Sidebar';
+import FeedbackIcon from '@mui/icons-material/Feedback';
 import BusinessDevelopmentResearch from './BusinessDevelopmentResearch/BusinessDevelopmentResearch';
 import QATool from './QATool/QATool';
 import DataAnalysis from './DataAnalysis/DataAnalysis';
-import AuthContext from '../AuthContext';
-
-const cards = [
-  { 
-    title: "Business Development Research",
-    gradient: 'linear-gradient(45deg, #FF6B6B, #FF8E53)',
-  },
-  { 
-    title: "Quality Assurance",
-    gradient: 'linear-gradient(45deg, #4158D0, #C850C0)',
-  },
-  { 
-    title: "Data Analysis",
-    gradient: 'linear-gradient(45deg, #0093E9, #80D0C7)',
-  },
-  { 
-    title: "Budget Research",
-    gradient: 'linear-gradient(45deg, #8EC5FC, #E0C3FC)',
-  },
-];
 
 export default function Dashboard() {
-  const theme = useTheme();
   const { user, loading } = useContext(AuthContext);
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('default');
+  const [currentSessionId, setCurrentSessionId] = useState(null);
 
-  useEffect(() => {
+  // Redirect to login if user is not authenticated
+  React.useEffect(() => {
     if (!loading && !user) {
       navigate('/login');
     }
   }, [user, loading, navigate]);
 
+  const handleSectionClick = (section) => {
+    setActiveSection(section);
+  };
+
+  const handleChatSessionClick = (sessionId) => {
+    setCurrentSessionId(sessionId);
+  };
+
+  // Display loading spinner while checking authentication state
   if (loading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-      >
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
         <CircularProgress />
       </Box>
     );
   }
 
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'Business Development Research':
-        return <BusinessDevelopmentResearch />;
-      case 'Quality Assurance':
-        return <QATool />;
-      case 'Data Analysis':
-        return <DataAnalysis />;
-      default:
-        return (
-          <Container maxWidth="xl" sx={{ py: 3 }}>
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                mb: 4,
-              }}
-            >
-              <Typography variant="h4" fontWeight="bold">
-                How can I help you today?
-              </Typography>
-              <Avatar
-                alt={user?.email || 'User'}
-                src="/static/images/avatar/1.jpg"
-                sx={{
-                  width: 40,
-                  height: 40,
-                  border: `2px solid ${theme.palette.primary.main}`,
-                }}
-              />
+  const cards = [
+    { title: "Business Development Research" },
+    { title: "Quality Assurance" },
+    { title: "Data Analysis" },
+    { title: "Budget Research" }
+  ];
+
+  return (
+    <Box display="flex" height="100vh">
+      {/* Sidebar with Clickable Navigation */}
+      <Sidebar 
+        onSectionClick={handleSectionClick}
+        onChatSessionClick={handleChatSessionClick}
+        currentSessionId={currentSessionId}
+      />
+
+      {/* Main Content Area */}
+      <Box flex={1} padding="20px" display="flex" flexDirection="column">
+        {activeSection === 'default' ? (
+          <Box>
+            {/* Top Bar */}
+            <Box display="flex" justifyContent="space-between" marginBottom="20px">
+              <Typography variant="h5">How can I help you today?</Typography>
+              <Avatar alt="User Avatar" src="/static/images/avatar/1.jpg" />
             </Box>
 
-            <Grid container spacing={3}>
+            {/* Default Card Layout */}
+            <Grid container rowSpacing={3} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
               {cards.map((card, index) => (
-                <Grid item xs={12} sm={6} key={index}>
-                  <Card
-                    onClick={() => setActiveSection(card.title)}
+                <Grid item xs={6} key={index}>
+                  <Box
                     sx={{
-                      height: 200,
+                      background: 'linear-gradient(45deg, #FF0000, #FF6F00)',
+                      color: 'white',
+                      borderRadius: '16px',
+                      height: '200px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
                       cursor: 'pointer',
-                      background: card.gradient,
-                      transition: 'all 0.3s ease',
+                      transition: 'transform 0.2s ease-in-out',
                       '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: theme.shadows[8],
+                        transform: 'scale(1.02)',
                       },
                     }}
+                    onClick={() => setActiveSection(card.title)}
                   >
-                    <CardContent
-                      sx={{
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '24px !important', // Override default padding
-                      }}
-                    >
-                      <Typography
-                        variant="h5"
-                        component="h2"
-                        color="white"
-                        fontWeight="bold"
-                        align="center"
-                        sx={{ 
-                          textShadow: '0px 2px 4px rgba(0,0,0,0.2)',
-                        }}
-                      >
-                        {card.title}
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                    <Typography variant="h6">{card.title}</Typography>
+                  </Box>
                 </Grid>
               ))}
             </Grid>
-          </Container>
-        );
-    }
-  };
-
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        minHeight: '100vh',
-        bgcolor: 'background.default',
-      }}
-    >
-      {/* Sidebar */}
-      <Sidebar onSectionClick={setActiveSection} />
-
-      {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
-        {renderContent()}
-
-        {/* Feedback Button */}
-        <IconButton
-          sx={{
-            position: 'fixed',
-            right: 20,
-            bottom: 20,
-            backgroundColor: 'primary.main',
-            color: 'white',
-            '&:hover': {
-              backgroundColor: 'primary.dark',
-            },
-            boxShadow: theme.shadows[4],
-          }}
-          size="large"
-        >
-          <FeedbackIcon />
-        </IconButton>
+          </Box>
+        ) : activeSection === 'Business Development Research' ? (
+          <BusinessDevelopmentResearch 
+            currentSessionId={currentSessionId}
+          />
+        ) : activeSection === 'Quality Assurance' ? (
+          <QATool 
+            currentSessionId={currentSessionId}
+          />
+        ) : activeSection === 'Data Analysis' ? (
+          <DataAnalysis 
+            currentSessionId={currentSessionId}
+          />
+        ) : activeSection === 'Budget Research' ? (
+          <Box>Budget Research Content</Box>
+        ) : (
+          <Box>Other Section Content</Box>
+        )}
       </Box>
+
+      {/* Feedback Button */}
+      <IconButton
+        sx={{ 
+          position: 'fixed', 
+          right: 20, 
+          bottom: 20, 
+          backgroundColor: '#6200EA', 
+          color: 'white',
+          '&:hover': {
+            backgroundColor: '#7C4DFF',
+          },
+          boxShadow: '0 3px 5px 2px rgba(98, 0, 234, .3)'
+        }}
+        size="large"
+      >
+        <FeedbackIcon />
+      </IconButton>
     </Box>
   );
 }
