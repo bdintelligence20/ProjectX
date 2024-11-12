@@ -9,7 +9,6 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   CircularProgress,
-  Tooltip,
   Divider,
   Button,
   Menu,
@@ -109,7 +108,8 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   useEffect(() => {
     if (user) {
       loadChatSessions();
-      // Set up real-time subscription
+      
+      // Set up real-time subscription for chat sessions
       const subscription = supabase
         .channel('chat_sessions_changes')
         .on('postgres_changes', 
@@ -119,7 +119,8 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
             table: 'chat_sessions',
             filter: `user_id=eq.${user.id}`
           }, 
-          () => {
+          (payload) => {
+            console.log('Session change detected:', payload);
             loadChatSessions();
           }
         )
@@ -136,12 +137,31 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
       setLoading(true);
       const { data, error } = await supabase
         .from('chat_sessions')
-        .select('*')
+        .select(`
+          *,
+          chat_messages (
+            id,
+            created_at
+          )
+        `)
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setChatSessions(data || []);
+
+      // Sort sessions by most recent message or creation date
+      const sortedSessions = data.sort((a, b) => {
+        const aLastMessage = a.chat_messages.length > 0 
+          ? Math.max(...a.chat_messages.map(m => new Date(m.created_at)))
+          : new Date(a.created_at);
+        const bLastMessage = b.chat_messages.length > 0 
+          ? Math.max(...b.chat_messages.map(m => new Date(m.created_at)))
+          : new Date(b.created_at);
+        return bLastMessage - aLastMessage;
+      });
+
+      console.log('Loaded chat sessions:', sortedSessions);
+      setChatSessions(sortedSessions);
     } catch (error) {
       console.error('Error loading chat sessions:', error);
     } finally {
@@ -164,7 +184,9 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
 
       if (error) throw error;
       if (data) {
+        console.log('Created new chat session:', data);
         onChatSessionClick(data.id);
+        loadChatSessions();
       }
     } catch (error) {
       console.error('Error creating new chat:', error);
@@ -182,6 +204,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
 
       if (error) throw error;
       setEditDialogOpen(false);
+      setAnchorEl(null);
       loadChatSessions();
     } catch (error) {
       console.error('Error updating session:', error);
@@ -199,10 +222,22 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
 
       if (error) throw error;
       setDeleteDialogOpen(false);
+      setAnchorEl(null);
+      
+      // If the current session was deleted, clear it
+      if (currentSessionId === selectedSession.id) {
+        onChatSessionClick(null);
+      }
+      
       loadChatSessions();
     } catch (error) {
       console.error('Error deleting session:', error);
     }
+  };
+
+  const handleSessionClick = (session) => {
+    console.log('Session clicked:', session.id);
+    onChatSessionClick(session.id);
   };
 
   const filteredSessions = chatSessions.filter(session =>
@@ -210,13 +245,37 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   );
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    });
+    const date = new Date(dateString);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // If the date is today
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    }
+    // If the date is yesterday
+    else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    }
+    // If the date is this year
+    else if (date.getFullYear() === now.getFullYear()) {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+    // If the date is from a previous year
+    else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
   };
 
   return (
@@ -310,7 +369,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
                 key={session.id}
                 button
                 selected={currentSessionId === session.id}
-                onClick={() => onChatSessionClick(session.id)}
+                onClick={() => handleSessionClick(session)}
                 sx={{
                   borderRadius: '8px',
                   mb: 1,
@@ -327,7 +386,9 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
                   secondary={formatDate(session.updated_at)}
                   primaryTypographyProps={{
                     noWrap: true,
-                    style: { fontWeight: 500 }
+                    style: { 
+                      fontWeight: currentSessionId === session.id ? 600 : 400 
+                    }
                   }}
                   secondaryTypographyProps={{
                     noWrap: true,
@@ -339,6 +400,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
                     edge="end"
                     size="small"
                     onClick={(event) => {
+                      event.stopPropagation();
                       setAnchorEl(event.currentTarget);
                       setSelectedSession(session);
                     }}
