@@ -1,162 +1,186 @@
-// AddSourcesModal.js
 import React, { useState, useContext } from 'react';
-import { Box, Typography, Modal, Button, Card, CardContent, IconButton, Select, MenuItem } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import {
+  Box,
+  Typography,
+  Modal,
+  Button,
+  Card,
+  CardContent,
+  IconButton,
+  Select,
+  MenuItem,
+  Paper,
+  Stack,
+  FormControl,
+  InputLabel,
+  TextField,
+  Alert,
+} from '@mui/material';
+import {
+  Add as AddIcon,
+  Link as LinkIcon,
+  Upload as UploadIcon,
+  ArrowBack as ArrowBackIcon,
+} from '@mui/icons-material';
 import axios from 'axios';
-import AuthContext from '../../AuthContext'; // Import AuthContext
-
-axios.defaults.baseURL = 'https://projectx-53gn.onrender.com';
+import AuthContext from '../../AuthContext';
 
 const modalStyle = {
   position: 'absolute',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
-  width: '80%',
+  width: '90vw',
   maxWidth: '900px',
+  maxHeight: '90vh',
   bgcolor: 'background.paper',
+  borderRadius: 2,
   boxShadow: 24,
-  borderRadius: '16px',
-  padding: '40px',
-  outline: 'none',
+  p: 4,
+  overflow: 'auto',
 };
 
 export default function AddSourcesModal({ onSourceAdded }) {
-  const { session } = useContext(AuthContext);  // Get session from AuthContext
+  const { session } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
-  const [activeMethod, setActiveMethod] = useState(null);  // Track method of source input
-  const [sourceLink, setSourceLink] = useState('');  // Store the website link input
-  const [file, setFile] = useState(null);  // Store uploaded file
-  const [category, setCategory] = useState(''); // Store selected category
+  const [activeMethod, setActiveMethod] = useState(null);
+  const [sourceLink, setSourceLink] = useState('');
+  const [file, setFile] = useState(null);
+  const [category, setCategory] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // List of categories for URLs
   const urlCategories = ['Business Research', 'Competitor Analysis', 'Client Research', 'General Research'];
-
-  // List of categories for Files
   const fileCategories = ['LRMG Knowledge', 'Trend Reports', 'Business Reports', 'Shareholder Reports', 'Qualitative Data', 'Quantitative Data'];
 
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => {
-    setOpen(false);
-    setSourceLink('');
-    setFile(null);
-    setCategory('');  // Reset the category
-  };
+  // Rest of your existing functions...
 
-  const handleAddSource = async () => {
-    const token = session?.access_token;  // Get the JWT token from the session
-
-    // Ensure token exists
-    if (!token) {
-      console.error("No authentication token found");
-      return;
-    }
-
-    // Set headers with the token for authorization
-    const headers = {
-      'Authorization': `Bearer ${token}`  // Pass the token in the request headers
-    };
-
-    // Process URL or file upload based on selected method and category
-    if (sourceLink && category) {
-      try {
-        const response = await axios.post('/add-source', {
-          sourceType: 'url',
-          content: sourceLink,
-          category: category,  // Pass the selected category
-        }, { headers });
-
-        onSourceAdded(response.data);
-        handleClose();
-      } catch (error) {
-        console.error('Failed to upload URL:', error);
-      }
-    } else if (file && category) {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('sourceType', 'file');
-      formData.append('category', category);  // Pass the selected category
-
-      try {
-        const response = await axios.post('/add-source', formData, { headers });
-        onSourceAdded(response.data);
-        handleClose();
-      } catch (error) {
-        console.error('Failed to upload file:', error);
-      }
-    }
-  };
-
-  // Render content based on the method
   const renderContent = () => {
     return (
-      <Box>
-        {/* Category Selection */}
-        <Select value={category} onChange={(e) => setCategory(e.target.value)} fullWidth>
-          {(activeMethod === 'file' ? fileCategories : urlCategories).map((cat) => (
-            <MenuItem value={cat} key={cat}>{cat}</MenuItem>
-          ))}
-        </Select>
+      <Stack spacing={3}>
+        <Box display="flex" alignItems="center" gap={2}>
+          <IconButton onClick={() => setActiveMethod(null)}>
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h6">
+            {activeMethod === 'website' ? 'Add Website Link' : 'Upload File'}
+          </Typography>
+        </Box>
 
-        {activeMethod === 'website' && (
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Upload Website Link</Typography>
-            <input
-              type="url"
-              placeholder="https://example.com"
-              value={sourceLink}
-              onChange={(e) => setSourceLink(e.target.value)}
-              style={{ padding: '10px', width: '100%' }}
-            />
-            <Button variant="contained" sx={{ backgroundColor: '#0073e6', marginTop: '20px' }} onClick={handleAddSource}>
-              Submit
-            </Button>
-          </Box>
-        )}
+        <FormControl fullWidth>
+          <InputLabel>Category</InputLabel>
+          <Select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            label="Category"
+          >
+            {(activeMethod === 'file' ? fileCategories : urlCategories).map((cat) => (
+              <MenuItem value={cat} key={cat}>{cat}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-        {activeMethod === 'file' && (
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>Upload File</Typography>
+        {activeMethod === 'website' ? (
+          <TextField
+            fullWidth
+            label="Website URL"
+            placeholder="https://example.com"
+            value={sourceLink}
+            onChange={(e) => setSourceLink(e.target.value)}
+            type="url"
+          />
+        ) : (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 3,
+              textAlign: 'center',
+              borderStyle: 'dashed',
+            }}
+          >
             <input
               type="file"
+              id="file-upload"
               accept=".pdf,.csv,.docx,.eml"
               onChange={(e) => setFile(e.target.files[0])}
+              style={{ display: 'none' }}
             />
-            <Button variant="contained" sx={{ backgroundColor: '#0073e6', marginTop: '20px' }} onClick={handleAddSource} disabled={!file}>
-              Submit
-            </Button>
-          </Box>
+            <label htmlFor="file-upload">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<UploadIcon />}
+              >
+                Choose File
+              </Button>
+            </label>
+            {file && (
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                Selected: {file.name}
+              </Typography>
+            )}
+          </Paper>
         )}
-      </Box>
+
+        {error && (
+          <Alert severity="error">{error}</Alert>
+        )}
+
+        <Button
+          variant="contained"
+          onClick={handleAddSource}
+          disabled={loading || !category || (!sourceLink && !file)}
+        >
+          {loading ? 'Processing...' : 'Submit'}
+        </Button>
+      </Stack>
     );
   };
 
+  // ... rest of your component
+
   return (
     <Box>
-      <Box display="flex" alignItems="center" sx={{ cursor: 'pointer' }} onClick={handleOpen}>
-        <IconButton color="primary">
-          <AddIcon />
-        </IconButton>
-        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#0073e6' }}>
-          Add Sources
-        </Typography>
-      </Box>
+      <Button
+        startIcon={<AddIcon />}
+        onClick={() => setOpen(true)}
+        variant="contained"
+        size="small"
+      >
+        Add Sources
+      </Button>
 
-      <Modal open={open} onClose={handleClose}>
+      <Modal open={open} onClose={() => setOpen(false)}>
         <Box sx={modalStyle}>
           {activeMethod ? (
             renderContent()
           ) : (
-            <Box>
-                            <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '10px' }}>Add sources</Typography>
-              <Typography variant="body2" color="textSecondary" sx={{ marginBottom: '30px' }}>
-                Upload sources by adding website links, files, or pasting text.
+            <Stack spacing={3}>
+              <Typography variant="h5" fontWeight="bold">
+                Add Sources
               </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
-                <CardOption title="Website" onClick={() => setActiveMethod('website')} />
-                <CardOption title="File (PDF, CSV, DOCX, EML)" onClick={() => setActiveMethod('file')} />
-              </Box>
-            </Box>
+              <Typography color="text.secondary">
+                Choose how you want to add sources to your library
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <MethodCard
+                    title="Website Link"
+                    icon={<LinkIcon sx={{ fontSize: 40 }} />}
+                    onClick={() => setActiveMethod('website')}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <MethodCard
+                    title="Upload File"
+                    subtitle="PDF, CSV, DOCX, EML"
+                    icon={<UploadIcon sx={{ fontSize: 40 }} />}
+                    onClick={() => setActiveMethod('file')}
+                  />
+                </Grid>
+              </Grid>
+            </Stack>
           )}
         </Box>
       </Modal>
@@ -164,23 +188,30 @@ export default function AddSourcesModal({ onSourceAdded }) {
   );
 }
 
-// Helper CardOption component for reusability
-const CardOption = ({ title, onClick }) => (
-  <Card
-    sx={{
-      border: '1px dashed #e0e0e0',
-      borderRadius: '12px',
-      padding: '20px',
-      flex: '1',
-      textAlign: 'center',
-      cursor: 'pointer',
-    }}
-    onClick={onClick}
-  >
-    <CardContent>
-      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{title}</Typography>
-    </CardContent>
-  </Card>
-);
-
-
+function MethodCard({ title, subtitle, icon, onClick }) {
+  return (
+    <Card
+      onClick={onClick}
+      sx={{
+        height: '100%',
+        cursor: 'pointer',
+        transition: 'transform 0.2s',
+        '&:hover': {
+          transform: 'translateY(-4px)',
+        },
+      }}
+    >
+      <CardContent>
+        <Stack spacing={2} alignItems="center" textAlign="center">
+          {icon}
+          <Typography variant="h6">{title}</Typography>
+          {subtitle && (
+            <Typography variant="body2" color="text.secondary">
+              {subtitle}
+            </Typography>
+          )}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}

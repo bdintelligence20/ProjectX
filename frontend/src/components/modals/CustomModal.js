@@ -1,30 +1,87 @@
 import React from 'react';
-import { Box, Typography, Modal } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Modal,
+  IconButton,
+  Paper,
+} from '@mui/material';
+import { Close as CloseIcon } from '@mui/icons-material';
 
 const modalStyle = {
-  position: 'absolute',
+  position: 'fixed',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
-  width: '80%',
+  width: '90vw',
   maxWidth: '900px',
+  maxHeight: '90vh',
   bgcolor: 'background.paper',
   boxShadow: 24,
   borderRadius: '16px',
-  padding: '40px',
   outline: 'none',
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
 };
 
-// This is the reusable modal component
 export default function CustomModal({ open, handleClose, title, children }) {
   return (
-    <Modal open={open} onClose={handleClose}>
-      <Box sx={modalStyle}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', marginBottom: '20px' }}>{title}</Typography>
-        <Box>
-          {children} {/* This allows dynamic content */}
+    <Modal
+      open={open}
+      onClose={handleClose}
+      aria-labelledby="modal-title"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Paper sx={modalStyle}>
+        {/* Header */}
+        <Box
+          sx={{
+            p: 3,
+            borderBottom: 1,
+            borderColor: 'divider',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Typography
+            id="modal-title"
+            variant="h5"
+            component="h2"
+            fontWeight="bold"
+          >
+            {title}
+          </Typography>
+          <IconButton
+            onClick={handleClose}
+            size="small"
+            sx={{
+              color: 'text.secondary',
+              '&:hover': {
+                color: 'text.primary',
+              },
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
         </Box>
-      </Box>
+
+        {/* Content */}
+        <Box
+          sx={{
+            p: 3,
+            overflowY: 'auto',
+            flexGrow: 1,
+          }}
+        >
+          {children}
+        </Box>
+      </Paper>
     </Modal>
   );
 }

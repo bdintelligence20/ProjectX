@@ -1,17 +1,37 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, TextField } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Button,
+  TextField,
+  Paper,
+  Grid,
+  CircularProgress,
+  Alert,
+} from '@mui/material';
+import { Upload as UploadIcon } from '@mui/icons-material';
 import axios from 'axios';
 
 export default function QATool() {
   const [originalText, setOriginalText] = useState("");
   const [revisedText, setRevisedText] = useState("");
   const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleFileChange = (event) => {
-    setFile(event.target.files[0]);
+    const selectedFile = event.target.files[0];
+    setFile(selectedFile);
+    setError(null);
   };
 
   const handleSubmit = async () => {
+    if (!file) {
+      setError("Please select a file first");
+      return;
+    }
+
+    setLoading(true);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -20,48 +40,119 @@ export default function QATool() {
       if (response.status === 200) {
         setOriginalText(response.data.originalText);
         setRevisedText(response.data.revisedText);
+        setError(null);
       }
     } catch (error) {
       console.error("Error uploading file:", error);
+      setError("Failed to process file. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Box display="flex" flexDirection="column" padding="40px" alignItems="center">
-      <Typography variant="h4" marginBottom="20px">QA Tool</Typography>
-      <Box border="2px dashed #c4c4c4" padding="20px" textAlign="center">
-        <input type="file" onChange={handleFileChange} />
-        <Button onClick={handleSubmit} variant="contained" style={{ marginTop: '10px' }}>Submit</Button>
-      </Box>
+    <Box sx={{ p: 4, maxWidth: '1400px', margin: '0 auto' }}>
+      <Typography variant="h4" fontWeight="bold" gutterBottom>
+        Quality Assurance Tool
+      </Typography>
+      
+      <Paper
+        elevation={0}
+        sx={{
+          mt: 3,
+          mb: 4,
+          p: 4,
+          border: '2px dashed',
+          borderColor: 'divider',
+          borderRadius: 2,
+          textAlign: 'center',
+          backgroundColor: 'background.default',
+        }}
+      >
+        <input
+          type="file"
+          id="file-upload"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+        <label htmlFor="file-upload">
+          <Button
+            variant="outlined"
+            component="span"
+            startIcon={<UploadIcon />}
+            sx={{ mb: 2 }}
+          >
+            Choose File
+          </Button>
+        </label>
+        
+        {file && (
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Selected file: {file.name}
+          </Typography>
+        )}
+        
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={!file || loading}
+          sx={{ mt: 2 }}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Process Document'}
+        </Button>
 
-      <Box display="flex" justifyContent="space-around" marginTop="40px" width="100%">
-        <Box width="45%">
-          <Typography variant="h6">Original Document</Typography>
-          <TextField
-            multiline
-            fullWidth
-            rows={15}
-            variant="outlined"
-            value={originalText || "No document uploaded"}
-            InputProps={{
-              readOnly: true,
-            }}
-          />
-        </Box>
-        <Box width="45%">
-          <Typography variant="h6">Revised Document</Typography>
-          <TextField
-            multiline
-            fullWidth
-            rows={15}
-            variant="outlined"
-            value={revisedText || "No revised document available"}
-            InputProps={{
-              readOnly: true,
-            }}
-          />
-        </Box>
-      </Box>
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        )}
+      </Paper>
+
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Paper elevation={0} sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" fontWeight="medium" gutterBottom>
+              Original Document
+            </Typography>
+            <TextField
+              multiline
+              fullWidth
+              rows={15}
+              variant="outlined"
+              value={originalText || "No document uploaded"}
+              InputProps={{
+                readOnly: true,
+                sx: { 
+                  backgroundColor: 'background.default',
+                  fontFamily: 'monospace'
+                }
+              }}
+            />
+          </Paper>
+        </Grid>
+        
+        <Grid item xs={12} md={6}>
+          <Paper elevation={0} sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" fontWeight="medium" gutterBottom>
+              Revised Document
+            </Typography>
+            <TextField
+              multiline
+              fullWidth
+              rows={15}
+              variant="outlined"
+              value={revisedText || "No revised document available"}
+              InputProps={{
+                readOnly: true,
+                sx: { 
+                  backgroundColor: 'background.default',
+                  fontFamily: 'monospace'
+                }
+              }}
+            />
+          </Paper>
+        </Grid>
+      </Grid>
     </Box>
   );
 }

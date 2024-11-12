@@ -1,111 +1,189 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, InputAdornment, Button } from '@mui/material';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  IconButton,
+  Divider,
+  Avatar
+} from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
 import SearchIcon from '@mui/icons-material/Search';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import PersonIcon from '@mui/icons-material/Person';
 import axios from 'axios';
 
 export default function ChatInterface() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
 
   const handleChatSubmit = async () => {
-    if (!chatInput.trim()) {
-      console.log("Chat input is empty.");
-      return;
-    }
+    if (!chatInput.trim()) return;
 
-    console.log("Submitting user query:", chatInput);
     try {
-      // Add user input to chat history
-      setChatHistory((prevHistory) => [
-        ...prevHistory,
-        { role: "user", content: chatInput }
-      ]);
+      // Add user message
+      setChatHistory(prev => [...prev, { role: "user", content: chatInput }]);
+      setIsTyping(true);
 
-      // Prepare the request payload
+      // Prepare and send request
       const payload = {
         userQuestion: chatInput,
-        searchScope: "whole", // Default to querying the entire global knowledge base
+        searchScope: "whole",
       };
 
-      // Send the user query to the backend for RAG
       const response = await axios.post('/query', payload);
 
-      console.log("Response from backend:", response.data);
-
-      // Add LLM response to chat history
-      setChatHistory((prevHistory) => [
-        ...prevHistory,
-        { role: "system", content: response.data.answer }
-      ]);
-
-      setChatInput(''); // Clear input after submission
+      // Add AI response
+      setChatHistory(prev => [...prev, { role: "system", content: response.data.answer }]);
+      setChatInput('');
     } catch (error) {
-      console.error('Error querying:', error);
-
-      // Add an error message to the chat history for better user feedback
-      setChatHistory((prevHistory) => [
-        ...prevHistory,
-        { role: "system", content: "Error occurred while querying. Please try again later." }
+      console.error('Error:', error);
+      setChatHistory(prev => [
+        ...prev,
+        { role: "system", content: "Sorry, I encountered an error. Please try again." }
       ]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
+  const MessageBubble = ({ message, isUser }) => (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        mb: 2,
+        ...(isUser && { flexDirection: 'row-reverse' })
+      }}
+    >
+      <Avatar
+        sx={{
+          bgcolor: isUser ? 'primary.main' : 'secondary.main',
+          width: 32,
+          height: 32,
+          mr: isUser ? 0 : 1,
+          ml: isUser ? 1 : 0
+        }}
+      >
+        {isUser ? <PersonIcon /> : <SmartToyIcon />}
+      </Avatar>
+      <Paper
+        elevation={1}
+        sx={{
+          p: 2,
+          maxWidth: '70%',
+          borderRadius: 2,
+          bgcolor: isUser ? 'primary.light' : 'background.paper',
+          color: isUser ? 'primary.contrastText' : 'text.primary'
+        }}
+      >
+        <Typography variant="body1">
+          {message.content}
+        </Typography>
+      </Paper>
+    </Box>
+  );
+
   return (
     <Box
-      flex={1}
-      display="flex"
-      flexDirection="column"
-      height="100vh"
-      backgroundColor="#fafafa"
+      sx={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        bgcolor: 'background.default'
+      }}
     >
-      {/* Chat history display */}
-      <Box flex="1 1 auto" p={2} overflow="auto">
-        <Typography variant="h6">Chat History</Typography>
-        <Box>
-          {chatHistory.map((message, index) => (
-            <Box key={index} mb={2}>
-              <Typography
-                variant="body1"
-                sx={{
-                  backgroundColor: message.role === "user" ? '#dfe9f3' : '#f3e9df',
-                  borderRadius: '16px',
-                  padding: '10px',
-                  margin: '5px 0'
-                }}
-              >
-                {message.content}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
+      {/* Chat Header */}
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.paper'
+        }}
+      >
+        <Typography variant="h6">Chat Assistant</Typography>
       </Box>
 
-      {/* Chat input field */}
-      <Box flex="0 1 80px" p={2} display="flex" alignItems="center" borderTop="1px solid #ddd">
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Ask a question..."
-          value={chatInput}
-          onChange={(e) => setChatInput(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter') handleChatSubmit();
+      {/* Messages Area */}
+      <Box
+        sx={{
+          flex: 1,
+          p: 3,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {chatHistory.map((message, index) => (
+          <MessageBubble
+            key={index}
+            message={message}
+            isUser={message.role === 'user'}
+          />
+        ))}
+        {isTyping && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <SmartToyIcon fontSize="small" />
+            <Typography variant="body2">Typing...</Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Input Area */}
+      <Box
+        sx={{
+          p: 2,
+          borderTop: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.paper'
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1
           }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-        />
-        <Button
-          variant="contained"
-          sx={{ marginLeft: '10px' }}
-          onClick={handleChatSubmit}
         >
-          Send
-        </Button>
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Type your message..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
+            size="medium"
+            InputProps={{
+              startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+              }
+            }}
+          />
+          <IconButton
+            color="primary"
+            onClick={handleChatSubmit}
+            disabled={!chatInput.trim()}
+            sx={{
+              bgcolor: 'primary.main',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'primary.dark',
+              },
+              '&.Mui-disabled': {
+                bgcolor: 'action.disabledBackground',
+              }
+            }}
+          >
+            <SendIcon />
+          </IconButton>
+        </Box>
       </Box>
     </Box>
   );
