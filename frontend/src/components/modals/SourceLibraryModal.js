@@ -10,9 +10,9 @@ import {
   ListItemText,
   ListItemAvatar,
   IconButton,
+  Grid2,
   Stack,
 } from '@mui/material';
-import Grid2 from '@mui/material/Unstable_Grid2';
 import {
   Folder as FolderIcon,
   Description as DescriptionIcon,
