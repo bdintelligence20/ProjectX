@@ -3,7 +3,7 @@ import React, { useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './styles/theme';
-import './styles/App.css';  // This will include both Material-UI and Tailwind styles
+import './styles/App.css';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -12,9 +12,8 @@ import Dashboard from './components/Dashboard';
 import AuthContext, { AuthProvider } from './AuthContext';
 import { CircularProgress } from '@mui/material';
 
-// ProtectedRoute component for route guarding
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
+  const { session, loading } = useContext(AuthContext);
 
   if (loading) {
     return (
@@ -24,7 +23,21 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  return user ? children : <Navigate to="/login" />;
+  return session ? children : <Navigate to="/login" />;
+};
+
+const AuthRoute = ({ children }) => {
+  const { session, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <CircularProgress />
+      </div>
+    );
+  }
+
+  return session ? <Navigate to="/dashboard" /> : children;
 };
 
 function App() {
@@ -33,14 +46,31 @@ function App() {
       <ThemeProvider theme={theme}>
         <Router>
           <Routes>
-            {/* Auth Routes */}
-            <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            {/* Public routes */}
+            <Route 
+              path="/" 
+              element={<Navigate to="/dashboard" replace />} 
+            />
+            <Route 
+              path="/login" 
+              element={
+                <AuthRoute>
+                  <Login />
+                </AuthRoute>
+              } 
+            />
+            <Route 
+              path="/register" 
+              element={
+                <AuthRoute>
+                  <Register />
+                </AuthRoute>
+              } 
+            />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             
-            {/* Protected Routes */}
+            {/* Protected routes */}
             <Route
               path="/dashboard/*"
               element={
@@ -49,8 +79,12 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            {/* Catch-all route to handle refreshes and direct URLs */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+            {/* Catch all route */}
+            <Route 
+              path="*" 
+              element={<Navigate to="/dashboard" replace />} 
+            />
           </Routes>
         </Router>
       </ThemeProvider>
