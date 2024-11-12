@@ -4,7 +4,7 @@ import {
   Typography, 
   TextField, 
   InputAdornment, 
-  Button, 
+  Button,
   CircularProgress,
   Snackbar,
   Alert
@@ -15,21 +15,27 @@ import AuthContext from '../../AuthContext';
 import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 
-export default function ChatInterface({ selectedSessionId = null }) {
+export default function ChatInterface({ selectedSessionId }) {
   const { user } = useContext(AuthContext);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const chatEndRef = useRef(null);
+
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'info'
   });
 
-  // Scroll to bottom of chat
+  useEffect(() => {
+    if (selectedSessionId) {
+      setCurrentSessionId(selectedSessionId);
+      loadChatHistory(selectedSessionId);
+    }
+  }, [selectedSessionId]);
+
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -37,50 +43,6 @@ export default function ChatInterface({ selectedSessionId = null }) {
   useEffect(() => {
     scrollToBottom();
   }, [chatHistory]);
-
-  // Initialize or load session
-  useEffect(() => {
-    if (user) {
-      if (selectedSessionId) {
-        loadChatHistory(selectedSessionId);
-      } else {
-        initializeNewSession();
-      }
-    }
-  }, [user, selectedSessionId]);
-
-  const initializeNewSession = async () => {
-    try {
-      const title = `Chat ${new Date().toLocaleString()}`;
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('chat_sessions')
-        .insert([{ 
-          user_id: user.id,
-          title
-        }])
-        .select('id')
-        .single();
-
-      if (sessionError) throw sessionError;
-      
-      setCurrentSessionId(sessionData.id);
-      setChatHistory([]);
-      
-      setSnackbar({
-        open: true,
-        message: 'New chat session started',
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error('Error creating new session:', error);
-      setError('Failed to create new chat session');
-      setSnackbar({
-        open: true,
-        message: 'Failed to create new chat session',
-        severity: 'error'
-      });
-    }
-  };
 
   const loadChatHistory = async (sessionId) => {
     try {
@@ -92,12 +54,9 @@ export default function ChatInterface({ selectedSessionId = null }) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-
-      setChatHistory(data);
-      setCurrentSessionId(sessionId);
+      setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
-      setError('Failed to load chat history');
       setSnackbar({
         open: true,
         message: 'Failed to load chat history',
@@ -108,20 +67,56 @@ export default function ChatInterface({ selectedSessionId = null }) {
     }
   };
 
+  const createNewSession = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .insert([
+          { 
+            user_id: user.id,
+            title: `Chat started on ${new Date().toLocaleString()}`
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setCurrentSessionId(data.id);
+      return data.id;
+    } catch (error) {
+      console.error('Error creating new session:', error);
+      throw error;
+    }
+  };
+
   const handleChatSubmit = async () => {
-    if (!chatInput.trim() || !currentSessionId || loading) return;
+    if (!chatInput.trim() || loading) return;
 
     try {
       setLoading(true);
-      
+
+      // If no session exists, create one
+      const sessionId = currentSessionId || await createNewSession();
+
       // Add user message to UI immediately
       const userMessage = { role: "user", content: chatInput };
       setChatHistory(prev => [...prev, userMessage]);
 
+      // Store user message in Supabase
+      await supabase
+        .from('chat_messages')
+        .insert([
+          {
+            session_id: sessionId,
+            role: 'user',
+            content: chatInput
+          }
+        ]);
+
       // Send query to backend
       const response = await axios.post('/query', {
         userQuestion: chatInput,
-        sessionId: currentSessionId,
+        sessionId: sessionId,
         searchScope: "whole"
       });
 
@@ -129,15 +124,20 @@ export default function ChatInterface({ selectedSessionId = null }) {
       const systemMessage = { role: "system", content: response.data.answer };
       setChatHistory(prev => [...prev, systemMessage]);
 
+      // Store system response in Supabase
+      await supabase
+        .from('chat_messages')
+        .insert([
+          {
+            session_id: sessionId,
+            role: 'system',
+            content: response.data.answer
+          }
+        ]);
+
       setChatInput('');
     } catch (error) {
       console.error('Error in chat submission:', error);
-      const errorMessage = { 
-        role: "system", 
-        content: "Error occurred while processing your request. Please try again." 
-      };
-      setChatHistory(prev => [...prev, errorMessage]);
-      
       setSnackbar({
         open: true,
         message: 'Failed to process your request',
@@ -155,6 +155,7 @@ export default function ChatInterface({ selectedSessionId = null }) {
     }
   };
 
+  // Rest of your render code remains the same...
   return (
     <Box
       flex={1}

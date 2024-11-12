@@ -49,6 +49,8 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Catch-all route to handle refreshes and direct URLs */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Router>
       </ThemeProvider>
