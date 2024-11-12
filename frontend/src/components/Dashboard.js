@@ -7,7 +7,7 @@ import {
   IconButton,
   CircularProgress,
   Container,
-  Grid2, // Import as MuiGrid to be explicit
+  Grid, // Import as MuiGrid to be explicit
   Card,
   CardContent,
   useTheme,
@@ -96,9 +96,9 @@ export default function Dashboard() {
               />
             </Box>
 
-            <Grid2 container spacing={3}>
+            <Grid container spacing={3}>
               {cards.map((card, index) => (
-                <Grid2 item xs={12} sm={6} key={index}>
+                <Grid item xs={12} sm={6} key={index}>
                   <Card
                     onClick={() => setActiveSection(card.title)}
                     sx={{
@@ -135,9 +135,9 @@ export default function Dashboard() {
                       </Typography>
                     </CardContent>
                   </Card>
-                </Grid2>
+                </Grid>
               ))}
-            </Grid2>
+            </Grid>
           </Container>
         );
     }

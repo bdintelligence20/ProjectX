@@ -15,7 +15,7 @@ import {
   Alert,
 
   IconButton,
-  Grid2,
+  Grid,
 } from '@mui/material';
 import {
   Upload as UploadIcon,
@@ -98,8 +98,8 @@ export default function AddSourcesModal({ onSourceAdded, onClose }) {
         Choose how you want to add sources to your library
       </Typography>
       
-      <Grid2 container spacing={3}>
-        <Grid2 xs={12} sm={6}>
+      <Grid container spacing={3}>
+        <Grid xs={12} sm={6}>
           <Card
             onClick={() => setActiveMethod('website')}
             sx={{
@@ -121,8 +121,8 @@ export default function AddSourcesModal({ onSourceAdded, onClose }) {
               </Stack>
             </CardContent>
           </Card>
-        </Grid2>
-        <Grid2 xs={12} sm={6}>
+        </Grid>
+        <Grid xs={12} sm={6}>
           <Card
             onClick={() => setActiveMethod('file')}
             sx={{
@@ -147,8 +147,8 @@ export default function AddSourcesModal({ onSourceAdded, onClose }) {
               </Stack>
             </CardContent>
           </Card>
-        </Grid2>
-      </Grid2>
+        </Grid>
+      </Grid>
     </Stack>
   );
 
