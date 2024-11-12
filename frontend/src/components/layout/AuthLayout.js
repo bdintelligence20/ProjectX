@@ -1,25 +1,25 @@
 import React from 'react';
-import { Card } from '@/components/ui/card';
 
-const AuthLayout = ({ children, quote = { 
+export default function AuthLayout({ children, quote = { 
   title: "Get Everything You Want", 
   subtitle: "You can get everything you want if you work hard, trust the process, and stick to the plan." 
-} }) => {
+} }) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-purple-900 via-pink-600 to-blue-500 p-4 sm:p-8">
-      <Card className="w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl flex">
+      <div className="w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row">
         {/* Left Panel - Quote */}
         <div className="hidden md:flex md:w-1/2 bg-black text-white p-12 flex-col justify-between relative overflow-hidden">
           {/* Animated gradient background */}
           <div 
-            className="absolute inset-0 bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500"
+            className="absolute inset-0 opacity-50"
             style={{
+              background: 'linear-gradient(-45deg, #6366f1, #a855f7, #ec4899, #3b82f6)',
               backgroundSize: '400% 400%',
               animation: 'gradient 15s ease infinite',
             }}
           />
           
-          <style jsx>{`
+          <style>{`
             @keyframes gradient {
               0% { background-position: 0% 50%; }
               50% { background-position: 100% 50%; }
@@ -47,9 +47,7 @@ const AuthLayout = ({ children, quote = {
         <div className="w-full md:w-1/2 p-8 sm:p-12 bg-white">
           {children}
         </div>
-      </Card>
+      </div>
     </div>
   );
-};
-
-export default AuthLayout;
+}
