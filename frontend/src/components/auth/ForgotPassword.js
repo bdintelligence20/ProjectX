@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from '../layout/AuthLayout';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  TextField,
+  Button,
+  Box,
+  Typography,
+  Alert,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { supabase } from '../../supabaseClient';
 
 export default function ForgotPassword() {
@@ -38,68 +43,72 @@ export default function ForgotPassword() {
         subtitle: "Don't worry, we'll help you get back into your account safely."
       }}
     >
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold">Forgot Password</h2>
-          <p className="text-gray-500">
+      <Box sx={{ maxWidth: '400px', mx: 'auto' }}>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" component="h1" sx={{ mb: 1, fontWeight: 700 }}>
+            Forgot Password
+          </Typography>
+          <Typography color="text.secondary">
             Enter your email address and we'll send you a link to reset your password
-          </p>
-        </div>
+          </Typography>
+        </Box>
 
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
           </Alert>
         )}
 
         {success ? (
-          <div className="space-y-4">
-            <Alert>
-              <AlertDescription>
-                Password reset link has been sent to your email address.
-                Please check your inbox and follow the instructions.
-              </AlertDescription>
+          <Box sx={{ textAlign: 'center', py: 2 }}>
+            <Alert severity="success" sx={{ mb: 3 }}>
+              Password reset link has been sent to your email address.
+              Please check your inbox and follow the instructions.
             </Alert>
-            <Link to="/login">
-              <Button variant="outline" className="w-full">
-                Back to Login
-              </Button>
-            </Link>
-          </div>
+            <Button
+              component={Link}
+              to="/login"
+              variant="outlined"
+              fullWidth
+              startIcon={<ArrowBackIcon />}
+            >
+              Back to Login
+            </Button>
+          </Box>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="email">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full"
-                required
-              />
-            </div>
+          <form onSubmit={handleSubmit}>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              margin="normal"
+              required
+            />
 
             <Button
               type="submit"
-              className="w-full"
+              variant="contained"
+              fullWidth
+              size="large"
+              sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
               {loading ? 'Sending Link...' : 'Send Reset Link'}
             </Button>
 
-            <p className="text-center text-sm text-gray-600">
-              Remember your password?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">
-                Sign In
+            <Box sx={{ textAlign: 'center' }}>
+              <Link to="/login" style={{ textDecoration: 'none' }}>
+                <Typography color="primary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                  <ArrowBackIcon fontSize="small" />
+                  Back to Login
+                </Typography>
               </Link>
-            </p>
+            </Box>
           </form>
         )}
-      </div>
+      </Box>
     </AuthLayout>
   );
 }
