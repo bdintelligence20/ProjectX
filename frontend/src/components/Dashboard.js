@@ -14,7 +14,6 @@ export default function Dashboard() {
   const [activeSection, setActiveSection] = useState('default');
   const [currentSessionId, setCurrentSessionId] = useState(null);
 
-  // Redirect to login if user is not authenticated
   React.useEffect(() => {
     if (!loading && !user) {
       navigate('/login');
@@ -22,14 +21,19 @@ export default function Dashboard() {
   }, [user, loading, navigate]);
 
   const handleSectionClick = (section) => {
+    console.log('Section clicked:', section);
     setActiveSection(section);
   };
 
   const handleChatSessionClick = (sessionId) => {
+    console.log('Chat session clicked:', sessionId);
     setCurrentSessionId(sessionId);
+    // If not already in a section, go to Business Development Research
+    if (activeSection === 'default') {
+      setActiveSection('Business Development Research');
+    }
   };
 
-  // Display loading spinner while checking authentication state
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
@@ -55,9 +59,9 @@ export default function Dashboard() {
       />
 
       {/* Main Content Area */}
-      <Box flex={1} padding="20px" display="flex" flexDirection="column">
+      <Box flex={1} display="flex" flexDirection="column">
         {activeSection === 'default' ? (
-          <Box>
+          <Box p={3}>
             {/* Top Bar */}
             <Box display="flex" justifyContent="space-between" marginBottom="20px">
               <Typography variant="h5">How can I help you today?</Typography>
@@ -65,9 +69,9 @@ export default function Dashboard() {
             </Box>
 
             {/* Default Card Layout */}
-            <Grid container rowSpacing={3} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+            <Grid container spacing={3}>
               {cards.map((card, index) => (
-                <Grid item xs={6} key={index}>
+                <Grid item xs={12} sm={6} key={index}>
                   <Box
                     sx={{
                       background: 'linear-gradient(45deg, #FF0000, #FF6F00)',
@@ -93,21 +97,13 @@ export default function Dashboard() {
             </Grid>
           </Box>
         ) : activeSection === 'Business Development Research' ? (
-          <BusinessDevelopmentResearch 
-            currentSessionId={currentSessionId}
-          />
+          <BusinessDevelopmentResearch currentSessionId={currentSessionId} />
         ) : activeSection === 'Quality Assurance' ? (
-          <QATool 
-            currentSessionId={currentSessionId}
-          />
+          <QATool currentSessionId={currentSessionId} />
         ) : activeSection === 'Data Analysis' ? (
-          <DataAnalysis 
-            currentSessionId={currentSessionId}
-          />
-        ) : activeSection === 'Budget Research' ? (
-          <Box>Budget Research Content</Box>
+          <DataAnalysis currentSessionId={currentSessionId} />
         ) : (
-          <Box>Other Section Content</Box>
+          <Box p={3}>Other Section Content</Box>
         )}
       </Box>
 

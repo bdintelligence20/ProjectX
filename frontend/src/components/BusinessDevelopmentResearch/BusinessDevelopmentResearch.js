@@ -1,37 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Box } from '@mui/material';
 import ChatInterface from '../common/ChatInterface';
 import RightColumn from '../common/RightColumn';
-import Sidebar from '../common/Sidebar';
 
-export default function BusinessDevelopmentResearch() {
-  const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [activeSection, setActiveSection] = useState('Business Development Research');
-
-  const handleSectionClick = (section) => {
-    setActiveSection(section);
-  };
-
-  const handleChatSessionClick = (sessionId) => {
-    console.log('Selected session:', sessionId); // Debug log
-    setCurrentSessionId(sessionId);
-  };
-
+export default function BusinessDevelopmentResearch({ currentSessionId }) {
   return (
     <Box display="flex" height="100vh">
-      {/* Sidebar */}
-      <Sidebar 
-        onSectionClick={handleSectionClick}
-        onChatSessionClick={handleChatSessionClick}
-        currentSessionId={currentSessionId}
-      />
-
       {/* Middle Section - Chat Interface */}
       <ChatInterface 
         selectedSessionId={currentSessionId}
       />
 
-      {/* Right Column */}
+      {/* Right Column - Add and View Source Library */}
       <RightColumn onSourceAdded={() => {}} />
     </Box>
   );
