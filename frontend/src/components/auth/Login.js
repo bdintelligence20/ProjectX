@@ -2,17 +2,27 @@ import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import AuthContext from '../../AuthContext';
 import AuthLayout from '../layout/AuthLayout';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { EyeIcon, EyeOffIcon } from 'lucide-react';
+import {
+  TextField,
+  Button,
+  Box,
+  Typography,
+  InputAdornment,
+  IconButton,
+  Checkbox,
+  FormControlLabel,
+  Alert,
+} from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import GoogleIcon from '@mui/icons-material/Google';
 
 export default function Login() {
   const { login } = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -27,100 +37,97 @@ export default function Login() {
 
   return (
     <AuthLayout>
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold">Welcome Back</h2>
-          <p className="text-gray-500">
+      <Box sx={{ maxWidth: '400px', mx: 'auto' }}>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" component="h1" sx={{ mb: 1, fontWeight: 700 }}>
+            Welcome Back
+          </Typography>
+          <Typography color="text.secondary">
             Enter your email and password to access your account
-          </p>
-        </div>
+          </Typography>
+        </Box>
 
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
           </Alert>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full"
-              required
+        <form onSubmit={handleLogin}>
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            margin="normal"
+            required
+          />
+
+          <TextField
+            fullWidth
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            margin="normal"
+            required
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', my: 2 }}>
+            <FormControlLabel
+              control={<Checkbox />}
+              label="Remember me"
             />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="password">
-              Password
-            </label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pr-10"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              >
-                {showPassword ? (
-                  <EyeOffIcon className="h-4 w-4" />
-                ) : (
-                  <EyeIcon className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <label className="flex items-center space-x-2">
-              <input type="checkbox" className="rounded border-gray-300" />
-              <span className="text-sm text-gray-600">Remember me</span>
-            </label>
-            <Link to="/forgot-password" className="text-sm text-blue-600 hover:text-blue-800">
-              Forgot Password?
+            <Link to="/forgot-password" style={{ textDecoration: 'none' }}>
+              <Typography color="primary" variant="body2">
+                Forgot Password?
+              </Typography>
             </Link>
-          </div>
+          </Box>
 
-          <Button type="submit" className="w-full">
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ mb: 2 }}
+          >
             Sign In
           </Button>
 
           <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => {/* Implement Google Sign In */}}
+            fullWidth
+            variant="outlined"
+            size="large"
+            startIcon={<GoogleIcon />}
+            sx={{ mb: 3 }}
           >
-            <img
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-              alt="Google"
-              className="w-5 h-5 mr-2"
-            />
-            Sign In with Google
+            Sign in with Google
           </Button>
-        </form>
 
-        <p className="text-center text-sm text-gray-600">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
-            Sign Up
-          </Link>
-        </p>
-      </div>
+          <Typography align="center" color="text.secondary">
+            Don't have an account?{' '}
+            <Link to="/register" style={{ textDecoration: 'none' }}>
+              <Typography component="span" color="primary" fontWeight={600}>
+                Sign Up
+              </Typography>
+            </Link>
+          </Typography>
+        </form>
+      </Box>
     </AuthLayout>
   );
 }

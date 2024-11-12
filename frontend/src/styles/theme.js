@@ -3,35 +3,30 @@ import { createTheme } from '@mui/material/styles';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#007bff',
-      light: '#3395ff',
-      dark: '#0056b3',
+      main: '#3b82f6',
+      light: '#60a5fa',
+      dark: '#2563eb',
     },
     secondary: {
-      main: '#ffc905',
-      light: '#ffdb4a',
-      dark: '#b38f00',
-    },
-    text: {
-      primary: '#000',
-    },
-    background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
-    },
-    gradient: {
-      primary: 'linear-gradient(to right bottom, #6366f1, #a855f7, #ec4899)',
+      main: '#ec4899',
+      light: '#f472b6',
+      dark: '#db2777',
     },
   },
   typography: {
-    fontFamily: 'Barlow, -apple-system, BlinkMacSystemFont, sans-serif',
-    h6: {
-      fontSize: '18px',
-      fontWeight: 600,
+    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    h3: {
+      fontSize: '2.5rem',
+      fontWeight: 700,
+      lineHeight: 1.2,
     },
-    subtitle1: {
-      fontSize: '16px',
-      fontWeight: 500,
+    body1: {
+      fontSize: '1rem',
+      lineHeight: 1.5,
+    },
+    button: {
+      textTransform: 'none',
+      fontWeight: 600,
     },
   },
   shape: {
@@ -42,16 +37,23 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: '8px',
-          textTransform: 'none',
-          fontWeight: 600,
+          padding: '8px 16px',
+          fontSize: '0.875rem',
+        },
+        contained: {
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: 'none',
+          },
         },
       },
     },
-    MuiCard: {
+    MuiTextField: {
       styleOverrides: {
         root: {
-          borderRadius: '16px',
-          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          '& .MuiOutlinedInput-root': {
+            borderRadius: '8px',
+          },
         },
       },
     },

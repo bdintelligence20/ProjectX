@@ -1,53 +1,109 @@
 import React from 'react';
+import { Box, Paper, Typography, useTheme } from '@mui/material';
+import { styled } from '@mui/material/styles';
 
-export default function AuthLayout({ children, quote = { 
-  title: "Get Everything You Want", 
-  subtitle: "You can get everything you want if you work hard, trust the process, and stick to the plan." 
+const GradientBox = styled(Box)(({ theme }) => ({
+  minHeight: '100vh',
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: theme.spacing(2),
+  background: 'linear-gradient(-45deg, #6366f1, #a855f7, #ec4899, #3b82f6)',
+  backgroundSize: '400% 400%',
+  animation: 'gradient 15s ease infinite',
+  '@keyframes gradient': {
+    '0%': { backgroundPosition: '0% 50%' },
+    '50%': { backgroundPosition: '100% 50%' },
+    '100%': { backgroundPosition: '0% 50%' },
+  },
+}));
+
+const AuthCard = styled(Paper)(({ theme }) => ({
+  width: '100%',
+  maxWidth: '1024px',
+  display: 'flex',
+  borderRadius: '24px',
+  overflow: 'hidden',
+  boxShadow: theme.shadows[20],
+  [theme.breakpoints.down('md')]: {
+    flexDirection: 'column',
+  },
+}));
+
+const QuoteSection = styled(Box)(({ theme }) => ({
+  width: '50%',
+  backgroundColor: '#000',
+  padding: theme.spacing(6),
+  color: '#fff',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'space-between',
+  position: 'relative',
+  overflow: 'hidden',
+  [theme.breakpoints.down('md')]: {
+    display: 'none',
+  },
+}));
+
+const FormSection = styled(Box)(({ theme }) => ({
+  width: '50%',
+  padding: theme.spacing(6),
+  backgroundColor: '#fff',
+  [theme.breakpoints.down('md')]: {
+    width: '100%',
+  },
+}));
+
+export default function AuthLayout({ children, quote = {
+  title: "Get Everything You Want",
+  subtitle: "You can get everything you want if you work hard, trust the process, and stick to the plan."
 } }) {
+  const theme = useTheme();
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-purple-900 via-pink-600 to-blue-500 p-4 sm:p-8">
-      <div className="w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row">
-        {/* Left Panel - Quote */}
-        <div className="hidden md:flex md:w-1/2 bg-black text-white p-12 flex-col justify-between relative overflow-hidden">
-          {/* Animated gradient background */}
-          <div 
-            className="absolute inset-0 opacity-50"
-            style={{
+    <GradientBox>
+      <AuthCard>
+        <QuoteSection>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              opacity: 0.5,
               background: 'linear-gradient(-45deg, #6366f1, #a855f7, #ec4899, #3b82f6)',
               backgroundSize: '400% 400%',
               animation: 'gradient 15s ease infinite',
             }}
           />
-          
-          <style>{`
-            @keyframes gradient {
-              0% { background-position: 0% 50%; }
-              50% { background-position: 100% 50%; }
-              100% { background-position: 0% 50%; }
-            }
-          `}</style>
-          
-          {/* Content */}
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="uppercase tracking-wider text-sm font-medium text-gray-300">
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Typography
+              variant="overline"
+              sx={{
+                letterSpacing: '0.1em',
+                color: 'rgba(255, 255, 255, 0.7)',
+                mb: 1,
+                display: 'block',
+              }}
+            >
               A Wise Quote
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold mb-4 font-serif">
-                {quote.title}
-              </h1>
-              <p className="text-sm text-gray-300">
-                {quote.subtitle}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Panel - Auth Form */}
-        <div className="w-full md:w-1/2 p-8 sm:p-12 bg-white">
+            </Typography>
+          </Box>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Typography variant="h3" component="h1" sx={{ mb: 2, fontWeight: 700 }}>
+              {quote.title}
+            </Typography>
+            <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              {quote.subtitle}
+            </Typography>
+          </Box>
+        </QuoteSection>
+        <FormSection>
           {children}
-        </div>
-      </div>
-    </div>
+        </FormSection>
+      </AuthCard>
+    </GradientBox>
   );
 }
