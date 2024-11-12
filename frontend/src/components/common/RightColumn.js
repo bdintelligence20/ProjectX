@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Box,
   Typography,
-  Link,
   Button,
   Paper,
   Stack,
@@ -10,8 +9,6 @@ import {
   Avatar,
   List,
   ListItem,
-  ListItemIcon,
-  ListItemText,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,22 +34,31 @@ const navigationLinks = [
 ];
 
 export default function RightColumn({ onSourceAdded }) {
-  const [open, setOpen] = useState(false);
+  const [addSourcesModalOpen, setAddSourcesModalOpen] = useState(false);
+  const [sourceLibraryModalOpen, setSourceLibraryModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [ModalContent, setModalContent] = useState(null);
+  const [modalContent, setModalContent] = useState(null);
 
-  const handleOpen = (title, Component) => {
+  // Handle Add Sources Modal
+  const handleAddSourcesOpen = () => setAddSourcesModalOpen(true);
+  const handleAddSourcesClose = () => setAddSourcesModalOpen(false);
+
+  // Handle Source Library Modal
+  const handleSourceLibraryOpen = () => setSourceLibraryModalOpen(true);
+  const handleSourceLibraryClose = () => setSourceLibraryModalOpen(false);
+
+  // Handle other modals
+  const handleModalOpen = (title, Component) => {
     setModalTitle(title);
-    setOpen(true);
-    setModalContent(
-      <Component
-        open={true}
-        onClose={handleClose}
-      />
-    );
+    setModalContent(<Component onClose={() => setModalOpen(false)} />);
+    setModalOpen(true);
   };
 
-  const handleClose = () => setOpen(false);
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setModalContent(null);
+  };
 
   return (
     <Box
@@ -74,7 +80,7 @@ export default function RightColumn({ onSourceAdded }) {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => handleOpen('Add Sources', () => <AddSourcesModal onSourceAdded={onSourceAdded} />)}
+            onClick={handleAddSourcesOpen}
             size="small"
             fullWidth
           >
@@ -82,7 +88,7 @@ export default function RightColumn({ onSourceAdded }) {
           </Button>
           <Button
             variant="outlined"
-            onClick={() => handleOpen('Source Library', SourceLibraryModal)}
+            onClick={handleSourceLibraryOpen}
             size="small"
             fullWidth
           >
@@ -152,7 +158,7 @@ export default function RightColumn({ onSourceAdded }) {
             >
               <Button
                 fullWidth
-                onClick={() => handleOpen(link.title, link.component)}
+                onClick={() => handleModalOpen(link.title, link.component)}
                 sx={{
                   justifyContent: 'flex-start',
                   color: 'primary.main',
@@ -178,13 +184,39 @@ export default function RightColumn({ onSourceAdded }) {
         </List>
       </Paper>
 
-      {/* Modal */}
-      <CustomModal 
-        open={open} 
-        handleClose={handleClose} 
+      {/* Add Sources Modal */}
+      <CustomModal
+        open={addSourcesModalOpen}
+        handleClose={handleAddSourcesClose}
+        title="Add Sources"
+      >
+        <AddSourcesModal
+          onSourceAdded={(source) => {
+            onSourceAdded(source);
+            handleAddSourcesClose();
+          }}
+          onClose={handleAddSourcesClose}
+        />
+      </CustomModal>
+
+      {/* Source Library Modal */}
+      <CustomModal
+        open={sourceLibraryModalOpen}
+        handleClose={handleSourceLibraryClose}
+        title="Source Library"
+      >
+        <SourceLibraryModal
+          onClose={handleSourceLibraryClose}
+        />
+      </CustomModal>
+
+      {/* Other Modals */}
+      <CustomModal
+        open={modalOpen}
+        handleClose={handleModalClose}
         title={modalTitle}
       >
-        {ModalContent}
+        {modalContent}
       </CustomModal>
     </Box>
   );
