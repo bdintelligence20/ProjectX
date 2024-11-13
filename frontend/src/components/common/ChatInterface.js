@@ -19,113 +19,64 @@ import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
-const SourceCitation = ({ webSources, dochubSources }) => {
-  if (!webSources?.length && !dochubSources?.length) return null;
+const SourceCitation = ({ dochubSources }) => {
+  if (!dochubSources?.length) return null;
 
   return (
     <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-      {webSources?.length > 0 && (
-        <Box mb={2}>
-          <Typography 
-            variant="caption" 
-            component="div"
-            sx={{ 
-              color: 'text.secondary',
-              fontWeight: 600,
-              mb: 1
-            }}
-          >
-            Web Sources:
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {webSources.map((source, index) => (
-              <Link
-                key={index}
-                href={source.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  textDecoration: 'none',
-                  color: 'primary.main',
-                  fontSize: '0.75rem',
-                  '&:hover': {
-                    textDecoration: 'underline',
-                  }
-                }}
-              >
-                {source.title}
-              </Link>
-            ))}
-          </Box>
-        </Box>
-      )}
-      
-      {dochubSources?.length > 0 && (
-        <Box>
-          <Typography 
-            variant="caption" 
-            component="div"
-            sx={{ 
-              color: 'text.secondary',
-              fontWeight: 600,
-              mb: 1
-            }}
-          >
-            DocHub Sources:
-          </Typography>
-          <Box
+      <Typography 
+        variant="caption" 
+        component="div"
+        sx={{ 
+          color: 'text.secondary',
+          fontWeight: 600,
+          mb: 1
+        }}
+      >
+        DocHub Sources:
+      </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
+        {dochubSources.map((source, index) => (
+          <Chip
+            key={index}
+            label={source}
+            size="small"
+            variant="outlined"
             sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 1,
+              borderRadius: '6px',
+              backgroundColor: 'rgba(59, 130, 246, 0.05)',
+              borderColor: 'rgba(59, 130, 246, 0.3)',
+              '& .MuiChip-label': {
+                fontSize: '0.75rem',
+                color: '#3b82f6',
+              }
             }}
-          >
-            {dochubSources.map((source, index) => (
-              <Chip
-                key={index}
-                label={source}
-                size="small"
-                variant="outlined"
-                sx={{
-                  borderRadius: '6px',
-                  backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                  borderColor: 'rgba(59, 130, 246, 0.3)',
-                  '& .MuiChip-label': {
-                    fontSize: '0.75rem',
-                    color: '#3b82f6',
-                  }
-                }}
-              />
-            ))}
-          </Box>
-        </Box>
-      )}
+          />
+        ))}
+      </Box>
     </Box>
   );
 };
 
 const MessageContent = ({ message }) => {
   // Parse content and sources if system message
-  const { content, webSources, dochubSources } = React.useMemo(() => {
+  const { content, dochubSources } = React.useMemo(() => {
     if (message.role === 'system') {
-      const parts = message.content.split(/\n(WEB_SOURCES:|DOCHUB_SOURCES:)/);
+      const parts = message.content.split(/\n(DOCHUB_SOURCES:)/);
       const mainContent = parts[0];
-      let web = [], doc = [];
+      let doc = [];
 
-      let currentSection = '';
-      for (let i = 1; i < parts.length; i++) {
-        if (parts[i] === 'WEB_SOURCES:') {
-          currentSection = 'web';
-        } else if (parts[i] === 'DOCHUB_SOURCES:') {
-          currentSection = 'doc';
-        } else if (currentSection === 'web' && parts[i].trim()) {
-          web = parts[i].trim().split('\n').filter(s => s.trim());
-        } else if (currentSection === 'doc' && parts[i].trim()) {
-          doc = parts[i].trim().split('\n').filter(s => s.trim());
-        }
+      if (parts[1] === 'DOCHUB_SOURCES:' && parts[2]?.trim()) {
+        doc = parts[2].trim().split('\n').filter(s => s.trim());
       }
 
-      return { content: mainContent, webSources: web, dochubSources: doc };
+      return { content: mainContent, dochubSources: doc };
     }
     return { content: message.content };
   }, [message.content]);
@@ -153,11 +104,8 @@ const MessageContent = ({ message }) => {
           <ReactMarkdown className="markdown-content">
             {content}
           </ReactMarkdown>
-          {(webSources?.length > 0 || dochubSources?.length > 0) && (
-            <SourceCitation
-              webSources={webSources}
-              dochubSources={dochubSources}
-            />
+          {dochubSources?.length > 0 && (
+            <SourceCitation dochubSources={dochubSources} />
           )}
         </Box>
       )}

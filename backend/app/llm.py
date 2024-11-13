@@ -12,17 +12,12 @@ load_dotenv()
 # Initialize OpenAI client with API key from environment variable
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def query_combined_sources(dochub_texts, web_contents, user_question):
+def query_llm(dochub_texts, user_question):
     try:
-        system_prompt = """You are a helpful research assistant that provides comprehensive answers using both internal documentation and web sources. 
-        Structure your response in two sections:
-        ### From the Web:
-        ### From DocHub:
-
-        Keep responses concise and focused on the most relevant information."""
+        system_prompt = """You are a helpful research assistant that provides comprehensive answers using internal documentation."""
 
         # Function to truncate context while preserving meaning
-        def prepare_context(texts, max_chars=1000):
+        def prepare_context(texts, max_chars=2000):
             if not texts:
                 return ""
             context = []
@@ -38,23 +33,11 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
                 total_chars += len(text)
             return "\n\n".join(context)
 
-        # Process web content with limits
-        web_context = ""
-        if web_contents:
-            web_sources = []
-            for item in web_contents[:3]:  # Limit to top 3 sources
-                chunks = item.get('chunks', [item['content']])
-                content = prepare_context(chunks, max_chars=1000)
-                if content:
-                    web_sources.append(f"Source: {item['title']}\n{content}")
-            web_context = "\n\n".join(web_sources)
-
         # Process DocHub content with limits
         dochub_context = prepare_context(dochub_texts, max_chars=2000)
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "system", "content": f"Web Sources:\n{web_context}" if web_context else "No web sources available."},
             {"role": "system", "content": f"DocHub Sources:\n{dochub_context}" if dochub_context else "No DocHub sources available."},
             {"role": "user", "content": user_question}
         ]
@@ -70,12 +53,7 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
             presence_penalty=0.5,
         )
 
-        # Format sources concisely
-        web_sources = [
-            f"{item['title']} ({item['link'][:50]}...)"
-            for item in web_contents[:3]
-        ] if web_contents else []
-        
+        # Format DocHub sources concisely
         dochub_sources = [
             f"{text[:50]}..." for text in dochub_texts[:3]
         ] if dochub_texts else []
@@ -83,16 +61,13 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
         # Combine response with sources
         main_response = response.choices[0].message.content.strip()
         
-        # Add source sections more concisely
-        if web_sources:
-            main_response += "\n\nWEB_SOURCES:\n" + "\n".join(web_sources)
         if dochub_sources:
             main_response += "\n\nDOCHUB_SOURCES:\n" + "\n".join(dochub_sources)
 
         return main_response
 
     except Exception as e:
-        logging.error(f"Error in combined query: {str(e)}")
+        logging.error(f"Error in DocHub query: {str(e)}")
         return "I apologize, but I encountered an error processing your request. Please try a more specific question or break it into smaller parts."
 
 def check_quality_with_llm(text):
@@ -271,7 +246,7 @@ def generate_source_summary(text: str, category: str) -> str:
     except Exception as e:
         logging.error(f"Error generating summary: {str(e)}")
         return f"Error generating summary: {str(e)}"
-        
+
 # Helper function for error handling
 def handle_llm_error(error, context=""):
     logging.error(f"LLM Error in {context}: {str(error)}")
