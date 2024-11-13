@@ -14,6 +14,151 @@ import SendIcon from '@mui/icons-material/Send';
 import AuthContext from '../../AuthContext';
 import { supabase } from '../../supabaseClient';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+
+const SourceCitation = ({ webSources, dochubSources }) => {
+  return (
+    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+      {webSources?.length > 0 && (
+        <Box mb={2}>
+          <Typography 
+            variant="caption" 
+            component="div"
+            sx={{ 
+              color: 'text.secondary',
+              fontWeight: 600,
+              mb: 1
+            }}
+          >
+            Web Sources:
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {webSources.map((source, index) => (
+              <Link
+                key={index}
+                href={source.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{
+                  textDecoration: 'none',
+                  color: 'primary.main',
+                  fontSize: '0.75rem',
+                  '&:hover': {
+                    textDecoration: 'underline',
+                  }
+                }}
+              >
+                {source.title}
+              </Link>
+            ))}
+          </Box>
+        </Box>
+      )}
+      
+      {dochubSources?.length > 0 && (
+        <Box>
+          <Typography 
+            variant="caption" 
+            component="div"
+            sx={{ 
+              color: 'text.secondary',
+              fontWeight: 600,
+              mb: 1
+            }}
+          >
+            DocHub Sources:
+          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
+            {dochubSources.map((source, index) => (
+              <Chip
+                key={index}
+                label={source}
+                size="small"
+                variant="outlined"
+                sx={{
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                  borderColor: 'rgba(59, 130, 246, 0.3)',
+                  '& .MuiChip-label': {
+                    fontSize: '0.75rem',
+                    color: '#3b82f6',
+                  }
+                }}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+const MessageContent = ({ message }) => {
+  // Parse content and sources if system message
+  const { content, webSources, dochubSources } = React.useMemo(() => {
+    if (message.role === 'system') {
+      const parts = message.content.split(/\n(WEB_SOURCES:|DOCHUB_SOURCES:)/);
+      const mainContent = parts[0];
+      let web = [], doc = [];
+
+      let currentSection = '';
+      for (let i = 1; i < parts.length; i++) {
+        if (parts[i] === 'WEB_SOURCES:') {
+          currentSection = 'web';
+        } else if (parts[i] === 'DOCHUB_SOURCES:') {
+          currentSection = 'doc';
+        } else if (currentSection === 'web' && parts[i].trim()) {
+          web = parts[i].trim().split('\n').filter(s => s.trim());
+        } else if (currentSection === 'doc' && parts[i].trim()) {
+          doc = parts[i].trim().split('\n').filter(s => s.trim());
+        }
+      }
+
+      return { content: mainContent, webSources: web, dochubSources: doc };
+    }
+    return { content: message.content };
+  }, [message.content]);
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        maxWidth: '70%',
+        backgroundColor: message.role === "user" ? '#007AFF' : '#f8fafc',
+        color: message.role === "user" ? 'white' : 'inherit',
+        borderRadius: '12px',
+        padding: '12px 16px',
+        marginLeft: message.role === "user" ? '30%' : '0',
+        marginRight: message.role === "user" ? '0' : '30%',
+        border: message.role === "user" ? 'none' : '1px solid #e2e8f0',
+      }}
+    >
+      {message.role === "user" ? (
+        <Typography variant="body1">
+          {content}
+        </Typography>
+      ) : (
+        <Box className="chat-response">
+          <ReactMarkdown className="markdown-content">
+            {content}
+          </ReactMarkdown>
+          {(webSources?.length > 0 || dochubSources?.length > 0) && (
+            <SourceCitation
+              webSources={webSources}
+              dochubSources={dochubSources}
+            />
+          )}
+        </Box>
+      )}
+    </Paper>
+  );
+};
 
 export default function ChatInterface({ selectedSessionId }) {
   const { user } = useContext(AuthContext);
@@ -252,22 +397,7 @@ export default function ChatInterface({ selectedSessionId }) {
                 display="flex"
                 justifyContent={message.role === "user" ? "flex-end" : "flex-start"}
               >
-                <Box
-                  sx={{
-                    maxWidth: '70%',
-                    backgroundColor: message.role === "user" ? '#007AFF' : '#f0f0f0',
-                    color: message.role === "user" ? 'white' : 'black',
-                    borderRadius: '12px',
-                    padding: '12px 16px',
-                    marginLeft: message.role === "user" ? '30%' : '0',
-                    marginRight: message.role === "user" ? '0' : '30%',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  <Typography variant="body1">
-                    {message.content}
-                  </Typography>
-                </Box>
+                <MessageContent message={message} />
               </Box>
             ))}
             <div ref={chatEndRef} />

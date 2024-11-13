@@ -57,7 +57,6 @@ const theme = createTheme({
         },
       },
     },
-    // Add these new styles
     MuiPaper: {
       styleOverrides: {
         root: {
@@ -68,6 +67,12 @@ const theme = createTheme({
             transition: 'box-shadow 0.2s ease-in-out',
             '&:hover': {
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            },
+          },
+          '&.chat-message': {
+            transition: 'box-shadow 0.2s ease-in-out',
+            '&:hover': {
+              boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
             },
           },
         },
@@ -83,6 +88,41 @@ const theme = createTheme({
           '&.summary-date': {
             color: '#64748b',
             fontSize: '0.75rem',
+          },
+          '&.source-title': {
+            color: '#1e293b',
+            fontWeight: 600,
+            fontSize: '0.75rem',
+          },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          '&.source-chip': {
+            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+            borderColor: 'rgba(59, 130, 246, 0.3)',
+            '&:hover': {
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            },
+          },
+        },
+      },
+    },
+    MuiLink: {
+      styleOverrides: {
+        root: {
+          '&.source-link': {
+            color: '#3b82f6',
+            textDecoration: 'none',
+            fontSize: '0.75rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            '&:hover': {
+              textDecoration: 'underline',
+            },
           },
         },
       },

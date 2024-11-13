@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer, get_embedding, process_source, store_in_supabase
 from app.pinecone_client import store_in_pinecone, query_pinecone
-from app.llm import query_llm, generate_source_summary
+from app.llm import query_combined_sources, generate_source_summary
 from app.llm import check_quality_with_llm
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
 from concurrent.futures import ThreadPoolExecutor
 from werkzeug.utils import secure_filename
+from app.web_search import search_and_scrape 
 import traceback
 from sqlalchemy import select
 import base64
@@ -329,21 +330,29 @@ def query():
     try:
         data = request.json
         user_question = data.get('userQuestion')
-        session_id = data.get('sessionId')  # Get session_id from request
+        session_id = data.get('sessionId')
 
         if not user_question or not session_id:
             logging.error("User question and session ID are required")
             return jsonify({"error": "User question and session ID are required"}), 400
 
-        # Step 1: Query Pinecone for relevant context
-        matched_texts = query_pinecone(user_question, namespace="global_knowledge_base")
+        # Step 1: Query Pinecone for relevant context (existing functionality)
+        dochub_texts = query_pinecone(user_question, namespace="global_knowledge_base")
+        
+        # Step 2: Get web search results (new functionality)
+        try:
+            web_results = search_and_scrape(user_question)
+        except Exception as e:
+            logging.error(f"Error in web search: {str(e)}")
+            web_results = []  # Fallback to empty if web search fails
 
-        if matched_texts:
-            # Step 2: Get response from LLM
-            response = query_llm(matched_texts, user_question)
+        # Step 3: Generate response if we have any results
+        if dochub_texts or web_results:
+            # Use new combined query function
+            response = query_combined_sources(dochub_texts, web_results, user_question)
 
             try:
-                # Step 3: Store the question and answer in Supabase
+                # Store the question and answer in Supabase
                 supabase.table('chat_messages').insert([
                     {
                         'session_id': session_id,
@@ -362,11 +371,11 @@ def query():
 
             except Exception as e:
                 logging.error(f"Error storing chat messages in Supabase: {str(e)}")
-                # Continue even if storage fails - prioritize responding to user
 
             return jsonify({
-                "answer": response, 
-                "sources": matched_texts
+                "answer": response,
+                "dochubSources": dochub_texts,
+                "webSources": web_results
             }), 200
 
         logging.info("No relevant information found.")
