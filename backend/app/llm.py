@@ -69,3 +69,40 @@ def check_quality_with_llm(text):
     except Exception as e:
         print(f"Error in check_quality_with_llm: {str(e)}")
         return None
+
+
+
+def generate_source_summary(text, source_type):
+    try:
+        # Create a dynamic prompt based on source type
+        system_prompt = f"""You are an expert at summarizing {source_type} documents. 
+        Create a comprehensive yet concise summary that includes:
+        1. Key points and findings
+        2. Main themes or topics
+        3. Important data or statistics (if any)
+        4. Conclusions or recommendations
+        5. Any notable insights
+
+        Format the summary in a clear, structured way using markdown."""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Please summarize the following {source_type} document:\n\n{text}"}
+        ]
+
+        # Query the model
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Using GPT-4 for better summarization
+            messages=messages,
+            temperature=0.5,
+            max_tokens=3000,
+            top_p=1,
+            frequency_penalty=0.3,
+            presence_penalty=0.3
+        )
+
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print(f"Error generating summary: {str(e)}")
+        return None

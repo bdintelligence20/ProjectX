@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer, get_embedding, process_source, store_in_supabase
 from app.pinecone_client import store_in_pinecone, query_pinecone
-from app.llm import query_llm
+from app.llm import query_llm, generate_source_summary
 from app.llm import check_quality_with_llm
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
@@ -194,6 +194,7 @@ def get_session():
         thread_local.session = requests.Session()
     return thread_local.session
 
+
 @bp.route('/add-source', methods=['POST'])
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
 def add_source():
@@ -228,7 +229,7 @@ def add_source():
                 scraped_data = scrape_website(url)
 
                 if scraped_data:
-                    # Process in smaller batches
+                    # Process in smaller batches for Pinecone
                     batch_size = 50
                     for i in range(0, len(scraped_data), batch_size):
                         batch = scraped_data[i:i + batch_size]
@@ -237,19 +238,34 @@ def add_source():
                     # Save scraped data as text in Supabase
                     filename = f"{url.replace('https://', '').replace('/', '_')}.txt"
                     temp_file_path = os.path.join('/tmp', filename)
+                    full_text = '\n'.join(scraped_data)
+                    
                     with open(temp_file_path, 'w') as f:
-                        f.write('\n'.join(scraped_data))
+                        f.write(full_text)
 
                     try:
+                        # Store file in Supabase
                         store_in_supabase(temp_file_path, bucket_name, filename)
                         logging.debug(f"Successfully stored {filename} in Supabase bucket {bucket_name}")
+
+                        # Generate and store summary
+                        summary = generate_source_summary(full_text, category)
+                        if summary:
+                            supabase.table('source_summaries').insert({
+                                'source_id': url,
+                                'category': category,
+                                'summary': summary
+                            }).execute()
+                            logging.debug(f"Successfully stored summary for {url}")
+
                     except Exception as e:
-                        logging.error(f"Error storing in Supabase: {str(e)}")
-                        # Continue even if Supabase storage fails
+                        logging.error(f"Error in storage operations: {str(e)}")
+                        # Continue even if storage fails
                     
-                    # Clean up
-                    if os.path.exists(temp_file_path):
-                        os.remove(temp_file_path)
+                    finally:
+                        # Clean up
+                        if os.path.exists(temp_file_path):
+                            os.remove(temp_file_path)
                     
                     return jsonify({"message": "URL processed successfully"}), 200
 
@@ -264,19 +280,30 @@ def add_source():
                     text = extract_text_from_file(temp_file_path, file_extension)
                     chunks = chunk_text(text)
 
-                    # Process chunks in batches
+                    # Process chunks in batches for Pinecone
                     batch_size = 50
                     for i in range(0, len(chunks), batch_size):
                         batch = chunks[i:i + batch_size]
                         store_in_pinecone(filename, batch, namespace="global_knowledge_base")
 
-                    # Store original file in Supabase
                     try:
+                        # Store file in Supabase
                         store_in_supabase(temp_file_path, bucket_name, filename)
                         logging.debug(f"Successfully stored {filename} in Supabase bucket {bucket_name}")
+
+                        # Generate and store summary
+                        summary = generate_source_summary(text, category)
+                        if summary:
+                            supabase.table('source_summaries').insert({
+                                'source_id': filename,
+                                'category': category,
+                                'summary': summary
+                            }).execute()
+                            logging.debug(f"Successfully stored summary for {filename}")
+
                     except Exception as e:
-                        logging.error(f"Error storing in Supabase: {str(e)}")
-                        # Continue even if Supabase storage fails
+                        logging.error(f"Error in storage operations: {str(e)}")
+                        # Continue even if storage fails
 
                     return jsonify({"message": "File processed successfully"}), 200
 
@@ -295,7 +322,6 @@ def add_source():
         logging.error(f"Error in add_source: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-        
 # Handle POST request to query Pinecone
 @bp.route('/query', methods=['POST'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
@@ -466,3 +492,20 @@ def upload_and_process_file():
 
     finally:
         os.remove(file_path)  # Clean up
+
+
+# Add new route to fetch summaries
+@bp.route('/summaries/<category>', methods=['GET'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+def get_category_summaries(category):
+    try:
+        response = supabase.table('source_summaries')\
+            .select('*')\
+            .eq('category', category)\
+            .order('created_at', desc=True)\
+            .execute()
+        
+        return jsonify(response.data), 200
+    except Exception as e:
+        logging.error(f"Error fetching summaries: {str(e)}")
+        return jsonify({"error": str(e)}), 500
