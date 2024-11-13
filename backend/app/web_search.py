@@ -5,8 +5,15 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from dotenv import load_dotenv
-import re
 import time
+
+# Import existing functions from scraping.py
+from .scraping import (
+    chunk_text,
+    MAX_TOKENS,
+    should_visit_link,
+    scrape_website
+)
 
 # Load environment variables
 load_dotenv()
@@ -18,48 +25,8 @@ logging.basicConfig(level=logging.DEBUG)
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 GOOGLE_CSE_ID = os.getenv('GOOGLE_CSE_ID')
 
-# Constants
-MAX_CONTENT_LENGTH = 1000  # Reduced from 2000 to save memory
-MAX_RETRIES = 2  # Reduced from 3 to speed up processing
-TIMEOUT = 5  # Reduced timeout
-MAX_FILE_SIZE = 1024 * 1024  # 1MB limit
-
-def is_valid_url(url):
-    """Check if URL is valid and not a blocked domain."""
-    try:
-        parsed = urlparse(url)
-        blocked_domains = [
-            'youtube.com', 'facebook.com', 'twitter.com', 'instagram.com',
-            'linkedin.com', 'pinterest.com', 'reddit.com'
-        ]
-        return parsed.netloc and not any(domain in parsed.netloc for domain in blocked_domains)
-    except:
-        return False
-
-def extract_main_content(html):
-    """Extract main content efficiently."""
-    try:
-        # Use lxml parser for better performance
-        soup = BeautifulSoup(html, 'lxml')
-        
-        # Remove unwanted elements
-        for element in soup.find_all(['script', 'style', 'nav', 'header', 'footer', 'iframe']):
-            element.decompose()
-
-        # Get text content
-        text = ' '.join(soup.stripped_strings)
-        
-        # Clean text
-        text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'[^\w\s.,!?-]', '', text)
-        
-        return text[:MAX_CONTENT_LENGTH]
-    except Exception as e:
-        logging.error(f"Error extracting content: {str(e)}")
-        return ""
-
-def search_and_scrape(query, num_results=3):  # Reduced from 5 to 3 results
-    """Search Google and scrape content with improved efficiency."""
+def search_and_scrape(query, num_results=3):
+    """Search Google and scrape content using existing chunking strategy."""
     if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
         logging.error("Google API credentials not found")
         return []
@@ -67,7 +34,7 @@ def search_and_scrape(query, num_results=3):  # Reduced from 5 to 3 results
     try:
         # Initialize Google Custom Search API
         service = build("customsearch", "v1", developerKey=GOOGLE_API_KEY,
-                       cache_discovery=False)  # Disable file cache
+                       cache_discovery=False)
         
         # Perform the search
         result = service.cse().list(
@@ -77,46 +44,36 @@ def search_and_scrape(query, num_results=3):  # Reduced from 5 to 3 results
         ).execute()
 
         web_contents = []
-        session = requests.Session()  # Use session for better performance
-        
+        session = requests.Session()
+
         for item in result.get('items', []):
             url = item.get('link')
-            if not url or not is_valid_url(url):
+            if not url or not should_visit_link(url, url, set()):
                 continue
 
             try:
-                # Get the webpage content with timeout and size limit
-                response = session.get(
-                    url,
-                    timeout=TIMEOUT,
-                    headers={'User-Agent': 'Mozilla/5.0'},
-                    stream=True
+                # Use existing scrape_website function
+                scraped_chunks = scrape_website(
+                    url, 
+                    max_depth=1,  # Limit to single page
+                    max_chunks=5   # Limit chunks per page
                 )
-                response.raise_for_status()
 
-                # Check content length
-                content_length = int(response.headers.get('content-length', 0))
-                if content_length > MAX_FILE_SIZE:
-                    logging.warning(f"Skipping {url}: Content too large")
-                    continue
-
-                # Extract content
-                content = extract_main_content(response.text)
-                if content:
+                if scraped_chunks:
+                    # Combine chunks for better context
+                    combined_content = ' '.join(scraped_chunks)
+                    
                     web_contents.append({
                         'title': item.get('title', ''),
                         'link': url,
-                        'content': content
+                        'content': combined_content,
+                        'chunks': scraped_chunks  # Store individual chunks for potential use
                     })
 
-                # Add delay between requests
-                time.sleep(1)
+                time.sleep(1)  # Rate limiting
 
-            except requests.RequestException as e:
-                logging.warning(f"Error scraping {url}: {str(e)}")
-                continue
             except Exception as e:
-                logging.error(f"Unexpected error processing {url}: {str(e)}")
+                logging.error(f"Error processing {url}: {str(e)}")
                 continue
 
         return web_contents
