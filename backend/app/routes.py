@@ -5,10 +5,13 @@ from app.llm import query_llm
 from app.llm import check_quality_with_llm
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
+from concurrent.futures import ThreadPoolExecutor
 from werkzeug.utils import secure_filename
 import traceback
 from sqlalchemy import select
 import base64
+import asyncio
+import threading
 import os
 from supabase import create_client, Client
 import urllib.parse
@@ -18,6 +21,8 @@ import logging
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG, force=True)
 
+# Add to your existing imports
+thread_local = threading.local()
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL")
@@ -184,6 +189,11 @@ file_buckets = {
     'Quantitative_Data': 'quantitative-data'
 }
 
+def get_session():
+    if not hasattr(thread_local, "session"):
+        thread_local.session = requests.Session()
+    return thread_local.session
+
 @bp.route('/add-source', methods=['POST'])
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
 def add_source():
@@ -211,43 +221,66 @@ def add_source():
             logging.error(f"Invalid category '{category}' or source type '{source_type}'. Bucket not found.")
             return jsonify({"error": "Invalid category or source type"}), 400
 
-        # Process URLs
-        if source_type == 'url' and 'content' in data:
-            url = data.get('content')
-            logging.debug(f"Scraping URL: {url} for bucket: {bucket_name}")
-            scraped_data = scrape_website(url)
+        # Process URLs or Files
+        try:
+            if source_type == 'url' and 'content' in data:
+                url = data.get('content')
+                logging.debug(f"Scraping URL: {url} for bucket: {bucket_name}")
+                scraped_data = scrape_website(url)
 
-            if scraped_data:
-                # Store scraped data in Pinecone
-                store_in_pinecone(url, scraped_data, namespace="global_knowledge_base")
-                # Save scraped data as text in Supabase
-                filename = f"{url.replace('https://', '').replace('/', '_')}.txt"
+                if scraped_data:
+                    # Process in smaller batches
+                    batch_size = 50  # Adjust based on your needs
+                    for i in range(0, len(scraped_data), batch_size):
+                        batch = scraped_data[i:i + batch_size]
+                        # Store scraped data in Pinecone
+                        store_in_pinecone(url, batch, namespace="global_knowledge_base")
+
+                    # Save scraped data as text in Supabase
+                    filename = f"{url.replace('https://', '').replace('/', '_')}.txt"
+                    temp_file_path = os.path.join('/tmp', filename)
+                    with open(temp_file_path, 'w') as f:
+                        f.write('\n'.join(scraped_data))
+
+                    store_in_supabase(temp_file_path, bucket_name, filename)
+                    os.remove(temp_file_path)  # Clean up
+                    return jsonify({"message": "URL processed successfully"}), 200
+
+            elif source_type == 'file' and file:
+                filename = secure_filename(file.filename)
                 temp_file_path = os.path.join('/tmp', filename)
-                with open(temp_file_path, 'w') as f:
-                    f.write('\n'.join(scraped_data))
+                file.save(temp_file_path)
 
-                process_source(temp_file_path, "txt", url, bucket_name, filename)
-                logging.debug(f"URL content uploaded as file {filename} to bucket {bucket_name}")
-                return jsonify({"message": "URL scraped, stored in Pinecone, and uploaded to Supabase"}), 200
+                try:
+                    file_extension = filename.split('.')[-1].lower()
+                    # Extract text and process in chunks
+                    text = extract_text_from_file(temp_file_path, file_extension)
+                    chunks = chunk_text(text)
 
-        # Process Files
-        elif source_type == 'file' and file:
-            filename = secure_filename(file.filename)
-            temp_file_path = os.path.join('/tmp', filename)
-            file.save(temp_file_path)
+                    # Process chunks in batches
+                    batch_size = 50  # Adjust based on your needs
+                    for i in range(0, len(chunks), batch_size):
+                        batch = chunks[i:i + batch_size]
+                        store_in_pinecone(filename, batch, namespace="global_knowledge_base")
 
-            file_extension = filename.split('.')[-1].lower()
-            process_source(temp_file_path, file_extension, filename, bucket_name, filename)
-            logging.debug(f"File {filename} processed and uploaded to bucket {bucket_name}")
-            return jsonify({"message": f"File {filename} processed and uploaded"}), 200
+                    # Store original file in Supabase
+                    store_in_supabase(temp_file_path, bucket_name, filename)
+                    return jsonify({"message": "File processed successfully"}), 200
 
-        logging.error("Invalid source type or content")
-        return jsonify({"error": "Invalid source type or content"}), 400
+                finally:
+                    if os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)  # Clean up
+
+            return jsonify({"error": "Invalid source type or content"}), 400
+
+        except Exception as e:
+            logging.error(f"Error processing source: {str(e)}")
+            return jsonify({"error": str(e)}), 500
 
     except Exception as e:
         logging.error(f"Error in add_source: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
+        
 # Handle POST request to query Pinecone
 @bp.route('/query', methods=['POST'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
