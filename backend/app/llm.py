@@ -47,10 +47,10 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
 
         # Query the OpenAI model
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=messages,
             temperature=0.7,
-            max_tokens=5000,
+            max_tokens=16383,
             top_p=1,
             frequency_penalty=0.1,
             presence_penalty=0.5,
@@ -95,7 +95,7 @@ def check_quality_with_llm(text):
 
         # Query the model
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=messages,
             temperature=0.2,
             max_tokens=3000,
@@ -143,7 +143,7 @@ def generate_source_summary(text, source_type):
 
         # Query the model
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=messages,
             temperature=0.5,
             max_tokens=3000,
