@@ -57,6 +57,36 @@ const theme = createTheme({
         },
       },
     },
+    // Add these new styles
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          '&.summary-paper': {
+            backgroundColor: '#f8fafc',
+            borderRadius: '12px',
+            padding: '16px',
+            transition: 'box-shadow 0.2s ease-in-out',
+            '&:hover': {
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            },
+          },
+        },
+      },
+    },
+    MuiTypography: {
+      styleOverrides: {
+        root: {
+          '&.summary-title': {
+            fontWeight: 600,
+            color: '#1e293b',
+          },
+          '&.summary-date': {
+            color: '#64748b',
+            fontSize: '0.75rem',
+          },
+        },
+      },
+    },
   },
 });
 

@@ -17,6 +17,7 @@ import ReactMarkdown from 'react-markdown';
 import CustomModal from '../modals/CustomModal';
 import AddSourcesModal from '../modals/AddSourcesModal';
 import SourceLibraryModal from '../modals/SourceLibraryModal';
+import CategorySummaries from '/CategorySummaries';
 import axios from 'axios';
 
 const navigationLinks = [

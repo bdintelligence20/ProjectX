@@ -5,9 +5,7 @@ import {
   Paper,
   List,
   ListItem,
-  ListItemText,
   CircularProgress,
-  Divider,
 } from '@mui/material';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
@@ -53,25 +51,38 @@ export default function CategorySummaries({ category, onClose }) {
   return (
     <Box p={2}>
       <List>
-        {summaries.map((summary, index) => (
-          <React.Fragment key={summary.id}>
-            <ListItem>
-              <Paper elevation={0} sx={{ width: '100%', p: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Source: {summary.source_id}
-                </Typography>
-                <Box sx={{ mt: 2 }}>
-                  <ReactMarkdown>
-                    {summary.summary}
-                  </ReactMarkdown>
-                </Box>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                  Added: {new Date(summary.created_at).toLocaleDateString()}
-                </Typography>
-              </Paper>
-            </ListItem>
-            {index < summaries.length - 1 && <Divider />}
-          </React.Fragment>
+        {summaries.map((summary) => (
+          <Paper 
+            key={summary.id} 
+            elevation={0} 
+            className="summary-paper"
+            sx={{ 
+              mb: 2, 
+              p: 2,
+              backgroundColor: 'rgba(0, 0, 0, 0.02)',
+              borderRadius: '8px'
+            }}
+          >
+            <Typography 
+              variant="subtitle2" 
+              className="summary-title"
+              gutterBottom
+            >
+              Source: {summary.source_id}
+            </Typography>
+            <Box sx={{ mt: 2 }}>
+              <ReactMarkdown className="markdown-content">
+                {summary.summary}
+              </ReactMarkdown>
+            </Box>
+            <Typography 
+              variant="caption" 
+              className="summary-date"
+              sx={{ mt: 2, display: 'block' }}
+            >
+              Added: {new Date(summary.created_at).toLocaleDateString()}
+            </Typography>
+          </Paper>
         ))}
         {summaries.length === 0 && (
           <Typography color="text.secondary" align="center">
