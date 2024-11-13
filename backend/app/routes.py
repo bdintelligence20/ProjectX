@@ -1,13 +1,12 @@
 from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer, get_embedding, process_source, store_in_supabase
 from app.pinecone_client import store_in_pinecone, query_pinecone
-from app.llm import query_combined_sources, generate_source_summary
+from app.llm import query_llm, generate_source_summary
 from app.llm import check_quality_with_llm
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
 from concurrent.futures import ThreadPoolExecutor
 from werkzeug.utils import secure_filename
-from app.web_search import search_and_scrape 
 import traceback
 from sqlalchemy import select
 import base64
@@ -323,7 +322,8 @@ def add_source():
         logging.error(f"Error in add_source: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# Handle POST request to query Pinecone
+
+
 @bp.route('/query', methods=['POST'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def query():
@@ -336,20 +336,12 @@ def query():
             logging.error("User question and session ID are required")
             return jsonify({"error": "User question and session ID are required"}), 400
 
-        # Step 1: Query Pinecone for relevant context (existing functionality)
+        # Step 1: Query Pinecone for relevant context from DocHub
         dochub_texts = query_pinecone(user_question, namespace="global_knowledge_base")
-        
-        # Step 2: Get web search results (new functionality)
-        try:
-            web_results = search_and_scrape(user_question)
-        except Exception as e:
-            logging.error(f"Error in web search: {str(e)}")
-            web_results = []  # Fallback to empty if web search fails
 
-        # Step 3: Generate response if we have any results
-        if dochub_texts or web_results:
-            # Use new combined query function
-            response = query_combined_sources(dochub_texts, web_results, user_question)
+        # Step 2: Generate response if we have any DocHub results
+        if dochub_texts:
+            response = query_llm(dochub_texts, user_question)
 
             try:
                 # Store the question and answer in Supabase
@@ -358,33 +350,28 @@ def query():
                         'session_id': session_id,
                         'role': 'user',
                         'content': user_question
-                    }
-                ]).execute()
-
-                supabase.table('chat_messages').insert([
+                    },
                     {
                         'session_id': session_id,
                         'role': 'system',
                         'content': response
                     }
                 ]).execute()
-
             except Exception as e:
                 logging.error(f"Error storing chat messages in Supabase: {str(e)}")
 
             return jsonify({
                 "answer": response,
-                "dochubSources": dochub_texts,
-                "webSources": web_results
+                "dochubSources": dochub_texts
             }), 200
 
         logging.info("No relevant information found.")
         return jsonify({"answer": "No relevant information found."}), 404
-
     except Exception as e:
         logging.error(f"Failed to query data: {str(e)}")
         return jsonify({"error": f"Failed to query data: {str(e)}"}), 500
         
+
 # Function to recursively list all files in a bucket
 def list_files(bucket_name, path=''):
     files = []
