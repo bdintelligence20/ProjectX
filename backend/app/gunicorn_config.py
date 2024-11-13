@@ -1,0 +1,15 @@
+bind = "0.0.0.0:8000"
+timeout = 300  # 5 minutes
+workers = 2
+threads = 4
+worker_class = 'gthread'
+max_requests = 1000
+max_requests_jitter = 50
+worker_tmp_dir = '/dev/shm'
+keepalive = 120
+worker_connections = 1000
+accesslog = '-'
+errorlog = '-'
+loglevel = 'info'
+capture_output = True
+enable_stdio_inheritance = True
