@@ -7,7 +7,10 @@ import {
   Button,
   CircularProgress,
   Snackbar,
-  Alert
+  Alert,
+  Paper,  // Added Paper import
+  Link,
+  Chip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import SendIcon from '@mui/icons-material/Send';
@@ -17,6 +20,8 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
 const SourceCitation = ({ webSources, dochubSources }) => {
+  if (!webSources?.length && !dochubSources?.length) return null;
+
   return (
     <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
       {webSources?.length > 0 && (
