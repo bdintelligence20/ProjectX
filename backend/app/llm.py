@@ -11,35 +11,43 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def query_combined_sources(dochub_texts, web_contents, user_question):
     try:
-        # Create structured prompts for both sources
         system_prompt = """You are a helpful research assistant that provides comprehensive answers using both internal documentation and web sources. 
-        Structure your response in two main sections:
+        Structure your response in two sections:
+        ### From the Web:
+        ### From DocHub:
 
-        1. First section titled "### From the Web:" containing insights from web sources
-        2. Second section titled "### From DocHub:" containing insights from internal documentation
+        Keep responses concise and focused on the most relevant information."""
 
-        For each section:
-        - Start with a brief overview
-        - Use markdown formatting for clear structure
-        - Use bullet points or numbered lists where appropriate
-        - Bold **important information**
-        - Use `code blocks` for technical content
-        - Include relevant quotes when helpful
-        - Use tables for comparative data
-        
-        When citing sources, indicate the specific section or part of the document where the information came from."""
+        # Function to truncate context while preserving meaning
+        def prepare_context(texts, max_chars=1000):
+            if not texts:
+                return ""
+            context = []
+            total_chars = 0
+            for text in texts:
+                if total_chars + len(text) > max_chars:
+                    # Take first part of remaining text to reach limit
+                    remaining = max_chars - total_chars
+                    if remaining > 100:  # Only add if we can include meaningful content
+                        context.append(text[:remaining] + "...")
+                    break
+                context.append(text)
+                total_chars += len(text)
+            return "\n\n".join(context)
 
-        # Process web content using chunks
+        # Process web content with limits
         web_context = ""
-        for item in web_contents:
-            # Create context from chunks with better structure
-            chunks = item.get('chunks', [item['content']])
-            web_context += f"\nSource: {item['title']} ({item['link']})\n"
-            for i, chunk in enumerate(chunks, 1):
-                web_context += f"Section {i}:\n{chunk}\n"
+        if web_contents:
+            web_sources = []
+            for item in web_contents[:3]:  # Limit to top 3 sources
+                chunks = item.get('chunks', [item['content']])
+                content = prepare_context(chunks, max_chars=1000)
+                if content:
+                    web_sources.append(f"Source: {item['title']}\n{content}")
+            web_context = "\n\n".join(web_sources)
 
-        # Process DocHub content (already chunked)
-        dochub_context = "\n\n".join(dochub_texts) if dochub_texts else ""
+        # Process DocHub content with limits
+        dochub_context = prepare_context(dochub_texts, max_chars=2000)
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -48,29 +56,31 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
             {"role": "user", "content": user_question}
         ]
 
-        # Query the OpenAI model
+        # Query the OpenAI model with reduced tokens
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
             temperature=0.7,
-            max_tokens=10000,
+            max_tokens=5000,  # Reduced from 5000
             top_p=1,
             frequency_penalty=0.1,
             presence_penalty=0.5,
         )
 
-        # Format sources with section references
+        # Format sources concisely
         web_sources = [
-            f"{item['title']} ({item['link']}) - {len(item.get('chunks', [1]))} sections"
-            for item in web_contents
+            f"{item['title']} ({item['link'][:50]}...)"
+            for item in web_contents[:3]
         ] if web_contents else []
         
-        dochub_sources = [f"{text[:50]}..." for text in dochub_texts] if dochub_texts else []
+        dochub_sources = [
+            f"{text[:50]}..." for text in dochub_texts[:3]
+        ] if dochub_texts else []
 
         # Combine response with sources
         main_response = response.choices[0].message.content.strip()
         
-        # Add source sections
+        # Add source sections more concisely
         if web_sources:
             main_response += "\n\nWEB_SOURCES:\n" + "\n".join(web_sources)
         if dochub_sources:
@@ -80,8 +90,7 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
 
     except Exception as e:
         logging.error(f"Error in combined query: {str(e)}")
-        return "I apologize, but I encountered an error processing your request."
-
+        return "I apologize, but I encountered an error processing your request. Please try a more specific question or break it into smaller parts."
 
 def check_quality_with_llm(text):
     try:
