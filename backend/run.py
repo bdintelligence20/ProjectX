@@ -1,6 +1,3 @@
-from db_utils import create_sources_table, engine, Base  # Import functions and database setup
-
-# Flask application
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -19,25 +16,33 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.secret_key = os.getenv('SECRET_KEY')
 
+# Set larger max content length (5GB)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024
+
+# Increase request timeouts
+app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
+
+# Configure CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://projectx-frontend-3owg.onrender.com"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
+
 # Set up extensions
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
-CORS(app, resources={r"/auth/*": {"origins": "https://projectx-frontend-3owg.onrender.com"}})
-
-# Create tables for users.db
-with app.app_context():
-    print("Creating all database tables...")
-    Base.metadata.create_all(engine)
-    create_sources_table()
-    print("Database tables created successfully.")
 
 # Register blueprints for routes
 from app.routes import bp
 app.register_blueprint(bp)
 
 if __name__ == "__main__":
+    with app.app_context():
+        print("Creating all database tables...")
+        db.create_all()
+        print("Database tables created successfully.")
     app.run(debug=True)
-
-
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5 GB

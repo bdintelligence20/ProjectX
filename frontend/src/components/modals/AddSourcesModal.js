@@ -40,54 +40,76 @@ export default function AddSourcesModal({ onSourceAdded, onClose }) {
   const urlCategories = ['Business Research', 'Competitor Analysis', 'Client Research', 'General Research'];
   const fileCategories = ['LRMG Knowledge', 'Trend Reports', 'Business Reports', 'Shareholder Reports', 'Qualitative Data', 'Quantitative Data'];
 
-  const handleAddSource = async () => {
-    setLoading(true);
-    setError(null);
-    const token = session?.access_token;
+  // Add a delay utility function
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    if (!token) {
-      setError("No authentication token found");
-      setLoading(false);
-      return;
-    }
+const handleAddSource = async () => {
+  setLoading(true);
+  setError(null);
+  const token = session?.access_token;
 
-    const headers = {
-      'Authorization': `Bearer ${token}`
-    };
+  if (!token) {
+    setError("No authentication token found");
+    setLoading(false);
+    return;
+  }
 
-    try {
-      if (activeMethod === 'website' && sourceLink && category) {
-        const response = await axios.post('/add-source', {
-          sourceType: 'url',
-          content: sourceLink,
-          category: category,
-        }, { headers });
-
-        onSourceAdded(response.data);
-        onClose();
-      } else if (activeMethod === 'file' && file && category) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('sourceType', 'file');
-        formData.append('category', category);
-
-        const response = await axios.post('/add-source', formData, {
-          headers: {
-            ...headers,
-            'Content-Type': 'multipart/form-data',
-          }
-        });
-
-        onSourceAdded(response.data);
-        onClose();
-      }
-    } catch (error) {
-      console.error('Failed to add source:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to add source');
-    } finally {
-      setLoading(false);
-    }
+  const headers = {
+    'Authorization': `Bearer ${token}`
   };
+
+  try {
+    if (activeMethod === 'website' && sourceLink && category) {
+      const response = await axios.post('/add-source', {
+        sourceType: 'url',
+        content: sourceLink,
+        category: category,
+      }, { 
+        headers,
+        timeout: 300000 // 5 minute timeout
+      });
+
+      onSourceAdded(response.data);
+      onClose();
+    } else if (activeMethod === 'file' && file && category) {
+      // Add file size check
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (file.size > MAX_FILE_SIZE) {
+        setError("File size exceeds 10MB limit");
+        setLoading(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sourceType', 'file');
+      formData.append('category', category);
+
+      const response = await axios.post('/add-source', formData, {
+        headers: {
+          ...headers,
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 300000, // 5 minute timeout
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          // You can add a progress indicator here if you want
+          console.log(percentCompleted);
+        }
+      });
+
+      // Add delay before closing to ensure processing is complete
+      await delay(2000);
+      onSourceAdded(response.data);
+      onClose();
+    }
+  } catch (error) {
+    console.error('Failed to add source:', error);
+    setError(error.response?.data?.error || error.message || 'Failed to add source. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderMethodSelection = () => (
     <Stack spacing={3}>
