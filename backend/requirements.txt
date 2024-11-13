@@ -21,3 +21,4 @@ requests
 beautifulsoup4
 gunicorn
 pycryptodome
+google-api-python-client
