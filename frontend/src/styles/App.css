@@ -141,6 +141,56 @@
   background-color: #f8fafc;
 }
 
+/* Chat Interface Styles */
+.chat-message {
+  max-width: 70%;
+  margin-bottom: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.chat-message:hover {
+  transform: translateY(-1px);
+}
+
+.chat-response {
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.chat-response .source-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.source-title {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.source-chip {
+  margin: 0.25rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  height: 24px;
+}
+
+.source-link {
+  display: block;
+  font-size: 0.75rem;
+  color: #3b82f6;
+  text-decoration: none;
+  margin: 0.25rem 0;
+  transition: color 0.2s ease;
+}
+
+.source-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
 /* Summary Card Styles */
 .summary-card {
   background-color: #ffffff;
@@ -153,4 +203,33 @@
 
 .summary-card:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Source Section Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.source-section {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #757575;
 }

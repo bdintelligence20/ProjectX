@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -7,18 +7,15 @@ import {
   Stack,
   List,
   ListItem,
-  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
   ArrowForwardIos as ArrowIcon,
 } from '@mui/icons-material';
-import ReactMarkdown from 'react-markdown';
 import CustomModal from '../modals/CustomModal';
 import AddSourcesModal from '../modals/AddSourcesModal';
 import SourceLibraryModal from '../modals/SourceLibraryModal';
-import CategorySummaries from '/CategorySummaries';
-import axios from 'axios';
+import CategorySummaries from '../summaries/CategorySummaries';  // Import the separate component
 
 const navigationLinks = [
   { 
@@ -72,85 +69,6 @@ const navigationLinks = [
     category: 'Quantitative_Data'
   },
 ];
-
-function CategorySummaries({ category, onClose }) {
-  const [summaries, setSummaries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchSummaries = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(`/summaries/${category}`);
-        setSummaries(response.data);
-      } catch (error) {
-        console.error('Error fetching summaries:', error);
-        setError('Failed to load summaries');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSummaries();
-  }, [category]);
-
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="200px">
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box p={3}>
-        <Typography color="error">{error}</Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box p={2}>
-      <List>
-        {summaries.map((summary, index) => (
-          <Paper 
-            key={summary.id} 
-            elevation={0} 
-            sx={{ 
-              mb: 2, 
-              p: 2,
-              backgroundColor: 'rgba(0, 0, 0, 0.02)',
-              borderRadius: '8px'
-            }}
-          >
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Source: {summary.source_id}
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              <ReactMarkdown className="markdown-content">
-                {summary.summary}
-              </ReactMarkdown>
-            </Box>
-            <Typography 
-              variant="caption" 
-              color="text.secondary" 
-              sx={{ mt: 2, display: 'block' }}
-            >
-              Added: {new Date(summary.created_at).toLocaleDateString()}
-            </Typography>
-          </Paper>
-        ))}
-        {summaries.length === 0 && (
-          <Typography color="text.secondary" align="center">
-            No summaries available for this category yet.
-          </Typography>
-        )}
-      </List>
-    </Box>
-  );
-}
 
 export default function RightColumn({ onSourceAdded }) {
   const [addSourcesModalOpen, setAddSourcesModalOpen] = useState(false);
