@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer, get_embedding, process_source
+from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer, get_embedding, process_source, store_in_supabase
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm
 from app.llm import check_quality_with_llm
@@ -221,7 +221,6 @@ def add_source():
             logging.error(f"Invalid category '{category}' or source type '{source_type}'. Bucket not found.")
             return jsonify({"error": "Invalid category or source type"}), 400
 
-        # Process URLs or Files
         try:
             if source_type == 'url' and 'content' in data:
                 url = data.get('content')
@@ -230,10 +229,9 @@ def add_source():
 
                 if scraped_data:
                     # Process in smaller batches
-                    batch_size = 50  # Adjust based on your needs
+                    batch_size = 50
                     for i in range(0, len(scraped_data), batch_size):
                         batch = scraped_data[i:i + batch_size]
-                        # Store scraped data in Pinecone
                         store_in_pinecone(url, batch, namespace="global_knowledge_base")
 
                     # Save scraped data as text in Supabase
@@ -242,8 +240,17 @@ def add_source():
                     with open(temp_file_path, 'w') as f:
                         f.write('\n'.join(scraped_data))
 
-                    store_in_supabase(temp_file_path, bucket_name, filename)
-                    os.remove(temp_file_path)  # Clean up
+                    try:
+                        store_in_supabase(temp_file_path, bucket_name, filename)
+                        logging.debug(f"Successfully stored {filename} in Supabase bucket {bucket_name}")
+                    except Exception as e:
+                        logging.error(f"Error storing in Supabase: {str(e)}")
+                        # Continue even if Supabase storage fails
+                    
+                    # Clean up
+                    if os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)
+                    
                     return jsonify({"message": "URL processed successfully"}), 200
 
             elif source_type == 'file' and file:
@@ -258,18 +265,25 @@ def add_source():
                     chunks = chunk_text(text)
 
                     # Process chunks in batches
-                    batch_size = 50  # Adjust based on your needs
+                    batch_size = 50
                     for i in range(0, len(chunks), batch_size):
                         batch = chunks[i:i + batch_size]
                         store_in_pinecone(filename, batch, namespace="global_knowledge_base")
 
                     # Store original file in Supabase
-                    store_in_supabase(temp_file_path, bucket_name, filename)
+                    try:
+                        store_in_supabase(temp_file_path, bucket_name, filename)
+                        logging.debug(f"Successfully stored {filename} in Supabase bucket {bucket_name}")
+                    except Exception as e:
+                        logging.error(f"Error storing in Supabase: {str(e)}")
+                        # Continue even if Supabase storage fails
+
                     return jsonify({"message": "File processed successfully"}), 200
 
                 finally:
+                    # Clean up
                     if os.path.exists(temp_file_path):
-                        os.remove(temp_file_path)  # Clean up
+                        os.remove(temp_file_path)
 
             return jsonify({"error": "Invalid source type or content"}), 400
 
@@ -280,6 +294,7 @@ def add_source():
     except Exception as e:
         logging.error(f"Error in add_source: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
         
 # Handle POST request to query Pinecone
 @bp.route('/query', methods=['POST'])
