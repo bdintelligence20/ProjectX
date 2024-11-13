@@ -1,37 +1,155 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
   Button,
   Paper,
   Stack,
-  Divider,
-  Avatar,
   List,
   ListItem,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
   ArrowForwardIos as ArrowIcon,
-  Description as SummaryIcon,
-  Book as ReportIcon,
-  People as ContactsIcon,
-  History as ActivityIcon,
 } from '@mui/icons-material';
+import ReactMarkdown from 'react-markdown';
 import CustomModal from '../modals/CustomModal';
-import FullCompanySummary from '../BusinessDevelopmentResearch/FullCompanySummary';
-import AnnualReports from '../BusinessDevelopmentResearch/AnnualReports';
-import TopContacts from '../BusinessDevelopmentResearch/TopContacts';
-import HubspotActivity from '../BusinessDevelopmentResearch/HubspotActivity';
 import AddSourcesModal from '../modals/AddSourcesModal';
 import SourceLibraryModal from '../modals/SourceLibraryModal';
+import axios from 'axios';
 
 const navigationLinks = [
-  { title: 'Full Company Summary', icon: <SummaryIcon />, component: FullCompanySummary },
-  { title: 'Annual Reports', icon: <ReportIcon />, component: AnnualReports },
-  { title: 'Top Contacts', icon: <ContactsIcon />, component: TopContacts },
-  { title: 'Hubspot Activity', icon: <ActivityIcon />, component: HubspotActivity },
+  { 
+    title: 'Business Research Summaries', 
+    emoji: '📊',
+    category: 'Business_Research'
+  },
+  { 
+    title: 'Competitor Analysis Summaries', 
+    emoji: '🔍',
+    category: 'Competitor_Analysis'
+  },
+  { 
+    title: 'Client Research Summaries', 
+    emoji: '👥',
+    category: 'Client_Research'
+  },
+  { 
+    title: 'General Research Summaries', 
+    emoji: '📚',
+    category: 'General_Research'
+  },
+  { 
+    title: 'LRMG Knowledge Summaries', 
+    emoji: '🧠',
+    category: 'LRMG_Knowledge'
+  },
+  { 
+    title: 'Trend Reports Summaries', 
+    emoji: '📈',
+    category: 'Trend_Reports'
+  },
+  { 
+    title: 'Business Reports Summaries', 
+    emoji: '💼',
+    category: 'Business_Reports'
+  },
+  { 
+    title: 'Shareholder Reports Summaries', 
+    emoji: '📑',
+    category: 'Shareholder_Reports'
+  },
+  { 
+    title: 'Qualitative Data Summaries', 
+    emoji: '📝',
+    category: 'Qualitative_Data'
+  },
+  { 
+    title: 'Quantitative Data Summaries', 
+    emoji: '📊',
+    category: 'Quantitative_Data'
+  },
 ];
+
+function CategorySummaries({ category, onClose }) {
+  const [summaries, setSummaries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchSummaries = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`/summaries/${category}`);
+        setSummaries(response.data);
+      } catch (error) {
+        console.error('Error fetching summaries:', error);
+        setError('Failed to load summaries');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSummaries();
+  }, [category]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="200px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box p={3}>
+        <Typography color="error">{error}</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box p={2}>
+      <List>
+        {summaries.map((summary, index) => (
+          <Paper 
+            key={summary.id} 
+            elevation={0} 
+            sx={{ 
+              mb: 2, 
+              p: 2,
+              backgroundColor: 'rgba(0, 0, 0, 0.02)',
+              borderRadius: '8px'
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Source: {summary.source_id}
+            </Typography>
+            <Box sx={{ mt: 2 }}>
+              <ReactMarkdown className="markdown-content">
+                {summary.summary}
+              </ReactMarkdown>
+            </Box>
+            <Typography 
+              variant="caption" 
+              color="text.secondary" 
+              sx={{ mt: 2, display: 'block' }}
+            >
+              Added: {new Date(summary.created_at).toLocaleDateString()}
+            </Typography>
+          </Paper>
+        ))}
+        {summaries.length === 0 && (
+          <Typography color="text.secondary" align="center">
+            No summaries available for this category yet.
+          </Typography>
+        )}
+      </List>
+    </Box>
+  );
+}
 
 export default function RightColumn({ onSourceAdded }) {
   const [addSourcesModalOpen, setAddSourcesModalOpen] = useState(false);
@@ -48,10 +166,15 @@ export default function RightColumn({ onSourceAdded }) {
   const handleSourceLibraryOpen = () => setSourceLibraryModalOpen(true);
   const handleSourceLibraryClose = () => setSourceLibraryModalOpen(false);
 
-  // Handle other modals
-  const handleModalOpen = (title, Component) => {
+  // Handle category summaries modal
+  const handleCategoryClick = (title, category) => {
     setModalTitle(title);
-    setModalContent(<Component onClose={() => setModalOpen(false)} />);
+    setModalContent(
+      <CategorySummaries 
+        category={category} 
+        onClose={() => setModalOpen(false)} 
+      />
+    );
     setModalOpen(true);
   };
 
@@ -97,7 +220,7 @@ export default function RightColumn({ onSourceAdded }) {
         </Stack>
       </Paper>
 
-      {/* Company Summary Section */}
+      {/* Doc Hub Summaries Section */}
       <Paper 
         elevation={0}
         sx={{
@@ -107,46 +230,14 @@ export default function RightColumn({ onSourceAdded }) {
           gap: 2,
         }}
       >
-        {/* Company Logo */}
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <Avatar
-            alt="MTN Logo"
-            src="/path/to/mtn-logo.png"
-            sx={{ width: 60, height: 60 }}
-          />
-        </Box>
-
-        {/* Company Title */}
+        {/* Section Title */}
         <Typography 
           variant="h6" 
-          align="center"
           fontWeight="bold"
           color="text.primary"
         >
-          Company Summary
+          Doc Hub Summaries
         </Typography>
-
-        <Divider />
-
-        {/* Summary Content */}
-        <Box>
-          <Typography 
-            variant="subtitle2" 
-            color="text.secondary"
-            gutterBottom
-          >
-            Current State of AI:
-          </Typography>
-          <Typography 
-            variant="body2" 
-            color="text.secondary"
-            sx={{ pl: 2 }}
-          >
-            Lack of Subjective Experience: Presently, AI lacks the capacity for subjective experience.
-          </Typography>
-        </Box>
-
-        <Divider />
 
         {/* Navigation Links */}
         <List disablePadding>
@@ -158,7 +249,7 @@ export default function RightColumn({ onSourceAdded }) {
             >
               <Button
                 fullWidth
-                onClick={() => handleModalOpen(link.title, link.component)}
+                onClick={() => handleCategoryClick(link.title, link.category)}
                 sx={{
                   justifyContent: 'flex-start',
                   color: 'primary.main',
@@ -168,13 +259,23 @@ export default function RightColumn({ onSourceAdded }) {
                     backgroundColor: 'action.hover',
                   },
                 }}
-                startIcon={link.icon}
+                startIcon={
+                  <span role="img" aria-label={link.title} style={{ fontSize: '1.2rem' }}>
+                    {link.emoji}
+                  </span>
+                }
                 endIcon={<ArrowIcon />}
               >
                 <Typography
                   variant="body2"
                   fontWeight="medium"
-                  sx={{ flexGrow: 1, textAlign: 'left' }}
+                  sx={{ 
+                    flexGrow: 1, 
+                    textAlign: 'left',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
                   {link.title}
                 </Typography>
@@ -210,7 +311,7 @@ export default function RightColumn({ onSourceAdded }) {
         />
       </CustomModal>
 
-      {/* Other Modals */}
+      {/* Category Summaries Modal */}
       <CustomModal
         open={modalOpen}
         handleClose={handleModalClose}
