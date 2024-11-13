@@ -27,15 +27,18 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
         - Include relevant quotes when helpful
         - Use tables for comparative data
         
-        Keep responses clear, concise, and well-organized, and maintain a clear separation between web and internal sources."""
+        When citing sources, indicate the specific section or part of the document where the information came from."""
 
-        # Prepare web context
-        web_context = "\n\n".join([
-            f"Title: {item['title']}\nURL: {item['link']}\nContent: {item['content']}"
-            for item in web_contents
-        ]) if web_contents else ""
+        # Process web content using chunks
+        web_context = ""
+        for item in web_contents:
+            # Create context from chunks with better structure
+            chunks = item.get('chunks', [item['content']])
+            web_context += f"\nSource: {item['title']} ({item['link']})\n"
+            for i, chunk in enumerate(chunks, 1):
+                web_context += f"Section {i}:\n{chunk}\n"
 
-        # Prepare dochub context
+        # Process DocHub content (already chunked)
         dochub_context = "\n\n".join(dochub_texts) if dochub_texts else ""
 
         messages = [
@@ -50,15 +53,19 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
             model="gpt-4o",
             messages=messages,
             temperature=0.7,
-            max_tokens=16383,
+            max_tokens=10000,
             top_p=1,
             frequency_penalty=0.1,
             presence_penalty=0.5,
         )
 
-        # Format sources
-        web_sources = [f"{item['title']} ({item['link']})" for item in web_contents] if web_contents else []
-        dochub_sources = [text[:50] + "..." for text in dochub_texts] if dochub_texts else []
+        # Format sources with section references
+        web_sources = [
+            f"{item['title']} ({item['link']}) - {len(item.get('chunks', [1]))} sections"
+            for item in web_contents
+        ] if web_contents else []
+        
+        dochub_sources = [f"{text[:50]}..." for text in dochub_texts] if dochub_texts else []
 
         # Combine response with sources
         main_response = response.choices[0].message.content.strip()
@@ -74,6 +81,7 @@ def query_combined_sources(dochub_texts, web_contents, user_question):
     except Exception as e:
         logging.error(f"Error in combined query: {str(e)}")
         return "I apologize, but I encountered an error processing your request."
+
 
 def check_quality_with_llm(text):
     try:
