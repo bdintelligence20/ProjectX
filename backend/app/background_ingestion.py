@@ -5,6 +5,23 @@ from app.llm import generate_source_summary
 import os
 import json
 
+# Define bucket mappings
+url_buckets = {
+    'Business_Research': 'business-research',
+    'Competitor_Analysis': 'competitor-analysis',
+    'Client_Research': 'client-research',
+    'General_Research': 'general-research'
+}
+
+file_buckets = {
+    'LRMG_Knowledge': 'lrmg-knowledge',
+    'Trend_Reports': 'trend-reports',
+    'Business_Reports': 'business-reports',
+    'Shareholder_Reports': 'shareholder-reports',
+    'Qualitative_Data': 'qualitative-data',
+    'Quantitative_Data': 'quantitative-data'
+}
+
 class BackgroundIngestion:
     def __init__(self, app):
         self.app = app
@@ -115,8 +132,8 @@ class BackgroundIngestion:
             self.check_and_process_buckets,
             'interval',
             hours=1,
-            coalesce=True,  # Combines missed runs
-            max_instances=1  # Prevents overlapping
+            coalesce=True,
+            max_instances=1
         )
         self.scheduler.start()
 
