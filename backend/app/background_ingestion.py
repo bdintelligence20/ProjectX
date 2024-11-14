@@ -131,7 +131,7 @@ class BackgroundIngestion:
         self.scheduler.add_job(
             self.check_and_process_buckets,
             'interval',
-            hours=1,
+            minutes=5,
             coalesce=True,
             max_instances=1
         )
