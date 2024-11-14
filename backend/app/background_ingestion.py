@@ -27,9 +27,23 @@ class BackgroundIngestion:
         self.app = app
         self.scheduler = BackgroundScheduler()
         self.supabase = app.supabase
-        self.processed_files_path = 'processed_files.json'
-        self.processed_files = self.load_processed_files()
         self.monitored_buckets = list(url_buckets.values()) + list(file_buckets.values())
+
+    def get_processed_files(self):
+        try:
+            response = self.supabase.table('processed_files').select('*').execute()
+            return {item['file_metadata'] for item in response.data}
+        except Exception as e:
+            logging.error(f"Error loading processed files: {str(e)}")
+            return set()
+
+    def add_processed_file(self, file_metadata):
+        try:
+            self.supabase.table('processed_files').insert({
+                'file_metadata': file_metadata
+            }).execute()
+        except Exception as e:
+            logging.error(f"Error saving processed file: {str(e)}")
 
     def generate_and_store_summary(self, file_path, file_type, category, source_id):
         try:
@@ -48,9 +62,10 @@ class BackgroundIngestion:
             summary = generate_source_summary(text, category)
             
             if summary:
+                # Store with original category format (with underscores)
                 self.supabase.table('source_summaries').insert({
                     'source_id': source_id,
-                    'category': category.replace('_', ' '),
+                    'category': category,  # Keep underscores
                     'summary': summary
                 }).execute()
                 logging.info(f"Summary generated and stored for {source_id}")
@@ -79,22 +94,23 @@ class BackgroundIngestion:
                 bucket_name
             )
 
-            # Process for Pinecone
-            process_source(
-                file_path=temp_path,
-                file_type=file_extension,
-                source_id=filename,
-                bucket_name=bucket_name,
-                file_name=filename
-            )
-
-            # Generate and store summary
+            # Generate and store summary first
             summary_success = self.generate_and_store_summary(
                 file_path=temp_path,
                 file_type=file_extension,
                 category=category,
                 source_id=filename
             )
+
+            if summary_success:
+                # Only process for Pinecone if summary was successful
+                process_source(
+                    file_path=temp_path,
+                    file_type=file_extension,
+                    source_id=filename,
+                    bucket_name=bucket_name,
+                    file_name=filename
+                )
 
             return summary_success
             
@@ -108,6 +124,8 @@ class BackgroundIngestion:
     def check_and_process_buckets(self):
         with self.app.app_context():
             try:
+                processed_files = self.get_processed_files()
+                
                 for bucket_name in self.monitored_buckets:
                     files = self.supabase.storage.from_(bucket_name).list()
                     
@@ -116,31 +134,13 @@ class BackgroundIngestion:
                         file_key = f"{bucket_name}/{filename}"
                         file_metadata = f"{file_key}_{file_info.get('metadata', {}).get('last_modified', '')}"
                         
-                        if file_metadata not in self.processed_files:
+                        if file_metadata not in processed_files:
                             if self.process_file(bucket_name, filename, file_info):
-                                self.processed_files.add(file_metadata)
-                                self.save_processed_files()
+                                self.add_processed_file(file_metadata)
                                 logging.info(f"Processed and summarized {filename} from {bucket_name}")
 
             except Exception as e:
                 logging.error(f"Error in background ingestion: {str(e)}")
-
-    def load_processed_files(self):
-        try:
-            if os.path.exists(self.processed_files_path):
-                with open(self.processed_files_path, 'r') as f:
-                    return set(json.load(f))
-            return set()
-        except Exception as e:
-            logging.error(f"Error loading processed files: {str(e)}")
-            return set()
-
-    def save_processed_files(self):
-        try:
-            with open(self.processed_files_path, 'w') as f:
-                json.dump(list(self.processed_files), f)
-        except Exception as e:
-            logging.error(f"Error saving processed files: {str(e)}")
 
     def start(self):
         self.scheduler.add_job(
