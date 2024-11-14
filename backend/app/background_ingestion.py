@@ -111,14 +111,14 @@ class BackgroundIngestion:
             logging.error(f"Error saving processed files: {str(e)}")
 
     def start(self):
-    self.scheduler.add_job(
-        self.check_and_process_buckets,
-        'interval',
-        hours=1,
-        coalesce=True,  # Combines missed runs
-        max_instances=1  # Prevents overlapping
-    )
-    self.scheduler.start()
+        self.scheduler.add_job(
+            self.check_and_process_buckets,
+            'interval',
+            hours=1,
+            coalesce=True,  # Combines missed runs
+            max_instances=1  # Prevents overlapping
+        )
+        self.scheduler.start()
 
 def init_background_ingestion(app):
     ingestion = BackgroundIngestion(app)
