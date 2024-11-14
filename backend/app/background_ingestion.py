@@ -33,30 +33,44 @@ class BackgroundIngestion:
 
     def generate_and_store_summary(self, file_path, file_type, category, source_id):
         try:
-            # Extract text from file
+            # Check if summary already exists
+            existing_summary = self.supabase.table('source_summaries')\
+                .select('*')\
+                .eq('source_id', source_id)\
+                .execute()
+
+            if existing_summary.data:
+                logging.info(f"Summary already exists for {source_id}")
+                return True
+
+            # Extract text and generate new summary
             text = extract_text_from_file(file_path, file_type)
-            
-            # Generate summary
             summary = generate_source_summary(text, category)
             
             if summary:
-                # Store in Supabase
                 self.supabase.table('source_summaries').insert({
                     'source_id': source_id,
                     'category': category.replace('_', ' '),
                     'summary': summary
                 }).execute()
                 logging.info(f"Summary generated and stored for {source_id}")
+                return True
         except Exception as e:
             logging.error(f"Error generating summary: {str(e)}")
+            return False
 
     def process_file(self, bucket_name, filename, file_info):
         temp_path = f"/tmp/{filename}"
         try:
-            # Download file
             with open(temp_path, 'wb') as f:
-                file_data = self.supabase.storage.from_(bucket_name).download(filename)
-                f.write(file_data)
+                try:
+                    file_data = self.supabase.storage.from_(bucket_name).download(filename)
+                    f.write(file_data)
+                except Exception as e:
+                    if 'Duplicate' in str(e):
+                        logging.warning(f"Duplicate file in Supabase: {filename} - continuing with processing")
+                    else:
+                        raise e
 
             file_extension = filename.split('.')[-1].lower()
             category = next(
@@ -75,14 +89,15 @@ class BackgroundIngestion:
             )
 
             # Generate and store summary
-            self.generate_and_store_summary(
+            summary_success = self.generate_and_store_summary(
                 file_path=temp_path,
                 file_type=file_extension,
                 category=category,
                 source_id=filename
             )
 
-            return True
+            return summary_success
+            
         except Exception as e:
             logging.error(f"Failed to process {filename}: {str(e)}")
             return False
