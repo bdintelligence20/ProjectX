@@ -35,8 +35,8 @@ import AuthContext from '../../AuthContext';
 
 axios.defaults.baseURL = 'https://projectx-53gn.onrender.com';
 
-const MAX_CONCURRENT_UPLOADS = 5;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
+const MAX_CONCURRENT_UPLOADS = 10;
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB per file
 const ALLOWED_FILE_TYPES = '.pdf,.csv,.docx,.eml';
 
 export default function AddSourcesModal({ onSourceAdded, onClose }) {

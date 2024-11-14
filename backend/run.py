@@ -4,6 +4,7 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from dotenv import load_dotenv
+from supabase import create_client
 import os
 
 # Load environment variables
@@ -22,6 +23,11 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024
 # Increase request timeouts
 app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
 
+# Initialize Supabase client
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
+app.supabase = create_client(supabase_url, supabase_key)
+
 # Configure CORS
 CORS(app, resources={
     r"/*": {
@@ -35,6 +41,10 @@ CORS(app, resources={
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+
+# Initialize background ingestion
+from app.background_ingestion import init_background_ingestion
+ingestion_service = init_background_ingestion(app)
 
 # Register blueprints for routes
 from app.routes import bp
