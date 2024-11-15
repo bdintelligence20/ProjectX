@@ -45,8 +45,6 @@ export default function Dashboard() {
   const cards = [
     { title: "Business Development Research" },
     { title: "Quality Assurance" },
-    { title: "Data Analysis" },
-    { title: "Budget Research" }
   ];
 
   return (
