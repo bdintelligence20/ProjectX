@@ -114,13 +114,25 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         .channel('chat_sessions_changes')
         .on('postgres_changes', 
           {
-            event: '*',
+            event: 'INSERT',
             schema: 'public',
             table: 'chat_sessions',
             filter: `user_id=eq.${user.id}`
           }, 
           (payload) => {
-            console.log('Session change detected:', payload);
+            console.log('New session created:', payload);
+            loadChatSessions();
+          }
+        )
+        .on('postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'chat_sessions',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Session deleted:', payload);
             loadChatSessions();
           }
         )
@@ -281,7 +293,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   return (
     <SidebarContainer>
       {/* Logo */}
-      <Logo src="/path/to/lrmg-logo.png" alt="LRMG Logo" />
+      <Logo src="/images/lrmg-logo.png" alt="LRMG Logo" />
       
       {/* New Chat Button */}
       <Button
