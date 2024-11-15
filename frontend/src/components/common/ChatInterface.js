@@ -19,7 +19,6 @@ import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
-// Source Citation Component
 const SourceCitation = ({ dochubSources }) => {
   if (!dochubSources?.length) return null;
 
@@ -36,13 +35,7 @@ const SourceCitation = ({ dochubSources }) => {
       >
         DocHub Sources:
       </Typography>
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 1,
-        }}
-      >
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
         {dochubSources.map((source, index) => (
           <Chip
             key={index}
@@ -65,9 +58,7 @@ const SourceCitation = ({ dochubSources }) => {
   );
 };
 
-// Message Content Component
 const MessageContent = ({ message }) => {
-  // Parse content and sources if system message
   const { content, dochubSources } = React.useMemo(() => {
     if (message.role === 'system') {
       const parts = message.content.split(/\n(DOCHUB_SOURCES:)/);
@@ -115,7 +106,6 @@ const MessageContent = ({ message }) => {
   );
 };
 
-// Main ChatInterface Component
 export default function ChatInterface({ selectedSessionId }) {
   const { user } = useContext(AuthContext);
   const [chatInput, setChatInput] = useState('');
@@ -130,7 +120,14 @@ export default function ChatInterface({ selectedSessionId }) {
     severity: 'info'
   });
 
-  // Effect for handling session changes
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
+
   useEffect(() => {
     if (selectedSessionId) {
       console.log('Selected session changed:', selectedSessionId);
@@ -143,14 +140,6 @@ export default function ChatInterface({ selectedSessionId }) {
       setCurrentSessionId(null);
     }
   }, [selectedSessionId]);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [chatHistory]);
 
   const loadChatHistory = async (sessionId) => {
     try {
@@ -165,8 +154,15 @@ export default function ChatInterface({ selectedSessionId }) {
 
       if (error) throw error;
 
-      console.log('Loaded messages:', data);
-      setChatHistory(data || []);
+      if (data) {
+        const messageMap = new Map(data.map(message => [message.id, message]));
+        const sortedMessages = Array.from(messageMap.values()).sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        );
+        setChatHistory(sortedMessages);
+      } else {
+        setChatHistory([]);
+      }
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -183,12 +179,10 @@ export default function ChatInterface({ selectedSessionId }) {
     try {
       const { data, error } = await supabase
         .from('chat_sessions')
-        .insert([
-          { 
-            user_id: user.id,
-            title: `Chat ${new Date().toLocaleString()}`
-          }
-        ])
+        .insert([{ 
+          user_id: user.id,
+          title: `Chat ${new Date().toLocaleString()}`
+        }])
         .select()
         .single();
 
@@ -206,32 +200,22 @@ export default function ChatInterface({ selectedSessionId }) {
 
     try {
       setLoading(true);
-
-      // If no session exists, create one
       const sessionId = currentSessionId || await createNewSession();
 
-      // Add user message to UI immediately
-      const newUserMessage = {
-        role: "user",
-        content: chatInput,
-        session_id: sessionId,
-        created_at: new Date().toISOString()
-      };
-      
-      setChatHistory(prev => [...prev, newUserMessage]);
-
       // Store user message in Supabase
-      const { error: userMessageError } = await supabase
+      const { data: userData, error: userMessageError } = await supabase
         .from('chat_messages')
         .insert([{
           session_id: sessionId,
           role: 'user',
           content: chatInput
-        }]);
+        }])
+        .select()
+        .single();
 
       if (userMessageError) throw userMessageError;
 
-      // Update session's updated_at timestamp
+      // Update session timestamp
       await supabase
         .from('chat_sessions')
         .update({ updated_at: new Date().toISOString() })
@@ -243,16 +227,6 @@ export default function ChatInterface({ selectedSessionId }) {
         sessionId: sessionId,
         searchScope: "whole"
       });
-
-      // Add system response to UI
-      const newSystemMessage = {
-        role: "system",
-        content: response.data.answer,
-        session_id: sessionId,
-        created_at: new Date().toISOString()
-      };
-      
-      setChatHistory(prev => [...prev, newSystemMessage]);
 
       // Store system response in Supabase
       const { error: systemMessageError } = await supabase
@@ -279,7 +253,6 @@ export default function ChatInterface({ selectedSessionId }) {
     }
   };
 
-  // Set up real-time subscription for messages
   useEffect(() => {
     if (!currentSessionId) return;
 
@@ -296,10 +269,11 @@ export default function ChatInterface({ selectedSessionId }) {
           console.log('Real-time update received:', payload);
           if (payload.new) {
             setChatHistory(prev => {
-              // Check if message already exists
-              const exists = prev.some(msg => msg.id === payload.new.id);
-              if (!exists) {
-                return [...prev, payload.new];
+              if (!prev.some(msg => msg.id === payload.new.id)) {
+                const newMessages = [...prev, payload.new].sort(
+                  (a, b) => new Date(a.created_at) - new Date(b.created_at)
+                );
+                return newMessages;
               }
               return prev;
             });
@@ -321,7 +295,6 @@ export default function ChatInterface({ selectedSessionId }) {
       height="100vh"
       backgroundColor="#fafafa"
     >
-      {/* Chat Messages Area */}
       <Box 
         flex="1 1 auto" 
         p={2} 
@@ -347,7 +320,7 @@ export default function ChatInterface({ selectedSessionId }) {
           <>
             {chatHistory.map((message, index) => (
               <Box 
-                key={`${message.id || index}-${message.created_at}`}
+                key={message.id || `${index}-${message.created_at}`}
                 mb={2}
                 display="flex"
                 justifyContent={message.role === "user" ? "flex-end" : "flex-start"}
@@ -360,7 +333,6 @@ export default function ChatInterface({ selectedSessionId }) {
         )}
       </Box>
 
-      {/* Input Area */}
       <Box 
         flex="0 1 auto" 
         p={2} 
@@ -414,7 +386,6 @@ export default function ChatInterface({ selectedSessionId }) {
         </Button>
       </Box>
 
-      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
