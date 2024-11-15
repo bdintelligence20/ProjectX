@@ -17,6 +17,7 @@ from supabase import create_client, Client
 import urllib.parse
 import nltk
 import logging
+import difflib
 
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG, force=True)
