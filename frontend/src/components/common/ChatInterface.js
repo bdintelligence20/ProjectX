@@ -130,46 +130,47 @@ export default function ChatInterface({ selectedSessionId }) {
 
   
 
+  
+
   useEffect(() => {
     if (selectedSessionId) {
+      setChatHistory([]); // Clear previous chat history
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
     } else {
       setChatHistory([]);
     }
   }, [selectedSessionId]);
+  
 
 
 
   const loadChatHistory = async (sessionId) => {
     try {
-        setLoading(true);
-        const { data, error } = await supabase
-            .from('chat_messages')
-            .select('*')
-            .eq('session_id', sessionId)
-            .order('created_at', { ascending: true });
-
-        if (error) throw error;
-        
-        // Create a Map to deduplicate messages by ID
-        const uniqueMessages = new Map();
-        data?.forEach(message => {
-            uniqueMessages.set(message.id, message);
-        });
-        
-        setChatHistory(Array.from(uniqueMessages.values()));
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+  
+      if (error) throw error;
+  
+      // Deduplicate messages
+      const uniqueMessages = new Map(data.map((msg) => [msg.id, msg]));
+      setChatHistory(Array.from(uniqueMessages.values()));
     } catch (error) {
-        console.error('Error loading chat history:', error);
-        setSnackbar({
-            open: true,
-            message: 'Failed to load chat history',
-            severity: 'error'
-        });
+      console.error('Error loading chat history:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load chat history',
+        severity: 'error',
+      });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
+  
 
   const createNewSession = async () => {
     try {
@@ -296,12 +297,13 @@ export default function ChatInterface({ selectedSessionId }) {
           </Box>
         ) : (
           <>
+            
             {chatHistory.map((message, index) => (
-              <Box 
-                key={message.id || `${index}-${message.created_at}`}
+              <Box
+                key={message.id || `${message.session_id}-${index}`}
                 mb={2}
                 display="flex"
-                justifyContent={message.role === "user" ? "flex-end" : "flex-start"}
+                justifyContent={message.role === 'user' ? 'flex-end' : 'flex-start'}
               >
                 <MessageContent message={message} />
               </Box>
