@@ -456,7 +456,6 @@ def get_all_sources():
         return jsonify({"error": str(e)}), 500
 
 
-
 @bp.route('/qa-tool/upload', methods=['POST'])
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
 def upload_and_process_file():
@@ -464,30 +463,130 @@ def upload_and_process_file():
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
-    file_path = os.path.join('/tmp', secure_filename(file.filename))
-    file.save(file_path)
+    if not file.filename:
+        return jsonify({"error": "No file selected"}), 400
 
     try:
-        # Extract and chunk text from the file
         file_type = file.filename.split('.')[-1].lower()
-        original_text = extract_text_from_file(file_path, file_type)
-        chunks = chunk_text(original_text)
+        if file_type not in ['txt', 'pdf', 'docx', 'pptx']:
+            return jsonify({"error": "Unsupported file type. Please upload PDF, DOCX, PPTX, or TXT files."}), 400
 
-        # Run QA on each chunk and collect revised text
-        revised_text = []
-        for chunk in chunks:
-            revised_text.append(check_quality_with_llm(chunk))
+        file_path = os.path.join('/tmp', secure_filename(file.filename))
+        file.save(file_path)
 
-        # Combine chunks for the display
-        revised_text_combined = "\n".join(revised_text)
+        try:
+            # Extract text while preserving structure
+            original_text = extract_text_from_file(file_path, file_type)
+            if not original_text:
+                return jsonify({"error": "Could not extract text from file"}), 400
 
-        return jsonify({
-            "originalText": original_text,
-            "revisedText": revised_text_combined
-        }), 200
+            # Process the text in chunks while maintaining structure
+            chunks = chunk_text(original_text)
+            revised_chunks = []
+            changes = []
+            current_position = 0
 
-    finally:
-        os.remove(file_path)  # Clean up
+            for chunk in chunks:
+                # Get LLM suggestions for improvements
+                revised_chunk = check_quality_with_llm(chunk)
+                revised_chunks.append(revised_chunk)
+
+                # Find differences between original and revised chunks
+                diff = difflib.SequenceMatcher(None, chunk, revised_chunk)
+                for tag, i1, i2, j1, j2 in diff.get_opcodes():
+                    if tag in ['replace', 'insert', 'delete']:
+                        change = {
+                            'type': tag,
+                            'position': current_position + i1,
+                            'length': i2 - i1,
+                            'original': chunk[i1:i2],
+                            'revised': revised_chunk[j1:j2],
+                        }
+                        changes.append(change)
+
+                current_position += len(chunk)
+
+            # Combine revised chunks
+            revised_text = "\n".join(revised_chunks)
+
+            # Extract formatting markers if present (for PDF/DOCX)
+            formatting = extract_formatting_markers(original_text, file_type)
+
+            return jsonify({
+                "originalText": original_text,
+                "revisedText": revised_text,
+                "changes": changes,
+                "formatting": formatting,
+                "fileType": file_type,
+                "success": True
+            }), 200
+
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+    except Exception as e:
+        logging.error(f"Error processing file: {str(e)}")
+        return jsonify({"error": "An error occurred while processing the file"}), 500
+
+def extract_formatting_markers(text, file_type):
+    """Extract formatting information based on file type."""
+    formatting = {
+        'paragraphs': [],
+        'headers': [],
+        'lists': [],
+        'tables': [],
+    }
+
+    if file_type in ['docx', 'pdf']:
+        # Identify paragraphs
+        paragraphs = re.split(r'\n\s*\n', text)
+        current_pos = 0
+        for para in paragraphs:
+            if para.strip():
+                formatting['paragraphs'].append({
+                    'start': current_pos,
+                    'length': len(para)
+                })
+            current_pos += len(para) + 2  # +2 for newlines
+
+        # Identify headers (basic heuristic)
+        header_pattern = r'^(?:[A-Z][^.!?]*[.!?]|[A-Z][^.!?]*$)'
+        for match in re.finditer(header_pattern, text, re.MULTILINE):
+            formatting['headers'].append({
+                'start': match.start(),
+                'length': match.end() - match.start()
+            })
+
+        # Identify bullet points and numbered lists
+        list_pattern = r'(?:^\s*[\u2022\-*]\s|^\s*\d+\.\s).+'
+        for match in re.finditer(list_pattern, text, re.MULTILINE):
+            formatting['lists'].append({
+                'start': match.start(),
+                'length': match.end() - match.start()
+            })
+
+    return formatting
+
+def get_relative_changes(original_text, revised_text):
+    """Calculate relative position of changes for highlighting."""
+    changes = []
+    matcher = difflib.SequenceMatcher(None, original_text, revised_text)
+    
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag != 'equal':
+            change = {
+                'type': tag,
+                'original_start': i1,
+                'original_end': i2,
+                'revised_start': j1,
+                'revised_end': j2,
+                'original_text': original_text[i1:i2],
+                'revised_text': revised_text[j1:j2],
+            }
+            changes.append(change)
+    
+    return changes
 
 
 # Add new route to fetch summaries
