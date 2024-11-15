@@ -247,10 +247,13 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
     }
   };
 
+
   const handleSessionClick = (session) => {
-    console.log('Session clicked:', session.id);
-    onChatSessionClick(session.id);
+    if (currentSessionId !== session.id) {
+      onChatSessionClick(session.id);
+    }
   };
+  
 
   const filteredSessions = chatSessions.filter(session =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase())
