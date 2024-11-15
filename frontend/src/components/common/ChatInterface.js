@@ -8,7 +8,7 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
-  Paper,  // Added Paper import
+  Paper,
   Link,
   Chip
 } from '@mui/material';
@@ -19,6 +19,7 @@ import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
+// Source Citation Component
 const SourceCitation = ({ dochubSources }) => {
   if (!dochubSources?.length) return null;
 
@@ -64,6 +65,7 @@ const SourceCitation = ({ dochubSources }) => {
   );
 };
 
+// Message Content Component
 const MessageContent = ({ message }) => {
   // Parse content and sources if system message
   const { content, dochubSources } = React.useMemo(() => {
@@ -113,6 +115,7 @@ const MessageContent = ({ message }) => {
   );
 };
 
+// Main ChatInterface Component
 export default function ChatInterface({ selectedSessionId }) {
   const { user } = useContext(AuthContext);
   const [chatInput, setChatInput] = useState('');
@@ -121,7 +124,6 @@ export default function ChatInterface({ selectedSessionId }) {
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
   const [firstLoad, setFirstLoad] = useState(true);
-
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',

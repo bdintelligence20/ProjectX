@@ -13,7 +13,6 @@ import {
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import GoogleIcon from '@mui/icons-material/Google';
 
 export default function Register() {
   const { register } = useContext(AuthContext);
@@ -128,13 +127,14 @@ export default function Register() {
           </Button>
 
           <Button
-            fullWidth
+            component={Link}
+            to="/login"
             variant="outlined"
+            fullWidth
             size="large"
-            startIcon={<GoogleIcon />}
             sx={{ mb: 3 }}
           >
-            Sign up with Google
+            Sign In
           </Button>
 
           <Typography align="center" color="text.secondary">
