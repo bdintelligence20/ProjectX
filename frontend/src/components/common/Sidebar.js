@@ -106,11 +106,11 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 
+
   useEffect(() => {
     if (user) {
       loadChatSessions(); // Initial load
   
-      // Set up real-time subscription for chat sessions
       const subscription = supabase
         .channel('chat_sessions_changes')
         .on(
@@ -118,19 +118,16 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${user.id}` },
           (payload) => {
             if (payload.eventType === 'INSERT') {
-              console.log('New session created:', payload);
-              setChatSessions((prevSessions) => [...prevSessions, payload.new]);
+              setChatSessions(prevSessions => [payload.new, ...prevSessions]);
             } else if (payload.eventType === 'UPDATE') {
-              console.log('Session updated:', payload);
-              setChatSessions((prevSessions) =>
-                prevSessions.map((session) =>
+              setChatSessions(prevSessions =>
+                prevSessions.map(session =>
                   session.id === payload.new.id ? payload.new : session
                 )
               );
             } else if (payload.eventType === 'DELETE') {
-              console.log('Session deleted:', payload);
-              setChatSessions((prevSessions) =>
-                prevSessions.filter((session) => session.id !== payload.old.id)
+              setChatSessions(prevSessions =>
+                prevSessions.filter(session => session.id !== payload.old.id)
               );
             }
           }
@@ -194,17 +191,18 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         ])
         .select()
         .single();
-
+  
       if (error) throw error;
       if (data) {
         console.log('Created new chat session:', data);
+        setChatSessions(prevSessions => [data, ...prevSessions]);
         onChatSessionClick(data.id);
-        loadChatSessions();
       }
     } catch (error) {
       console.error('Error creating new chat:', error);
     }
   };
+  
 
   const handleEditSession = async () => {
     if (!selectedSession || !editTitle.trim()) return;
