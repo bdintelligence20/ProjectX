@@ -72,38 +72,42 @@ def query_llm(dochub_texts, user_question):
 
 def check_quality_with_llm(text):
     try:
-        # Create a prompt for text quality assurance
+        # Create a prompt that emphasizes preserving document structure
         messages = [
-            {"role": "system", "content": """Please check the following text for spelling, grammar, and structure issues.
-            Provide your response in the following format:
+            {"role": "system", "content": """
+            You are a professional editor focusing on improving text while maintaining its original structure and formatting.
+            Focus on:
+            1. Grammar and spelling corrections
+            2. Sentence structure improvements
+            3. Clarity and readability enhancements
             
-            ### Overview
-            Brief overview of the text quality
-
-            ### Corrections
-            - List of specific corrections needed
-            
-            ### Improved Version
-            The corrected text in full"""},
-            {"role": "user", "content": text}
+            Important:
+            - Preserve all original formatting (paragraphs, lists, headers)
+            - Keep the same basic structure
+            - Only make necessary language improvements
+            - Maintain the original tone and style
+            - Return the text in the exact same format with improvements
+            """},
+            {"role": "user", "content": f"Improve the following text while maintaining its structure:\n\n{text}"}
         ]
 
         # Query the model
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=messages,
-            temperature=0.2,
+            temperature=0.2,  # Lower temperature for more consistent corrections
             max_tokens=3000,
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
         )
 
+        # Extract and return the improved text
         return response.choices[0].message.content.strip()
 
     except Exception as e:
         logging.error(f"Error in check_quality_with_llm: {str(e)}")
-        return None
+        return text  # Return original text if processing fails
 
 class SourceSummaryHandler:
     def __init__(self):

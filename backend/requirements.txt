@@ -23,3 +23,8 @@ gunicorn
 pycryptodome
 google-api-python-client
 APScheduler
+python-magic
+mammoth
+language-tool-python
+diff-match-patch
+python-Levenshtein
