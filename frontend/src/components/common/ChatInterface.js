@@ -131,19 +131,15 @@ export default function ChatInterface({ selectedSessionId }) {
   
 
   
-
+  
   useEffect(() => {
-    if (selectedSessionId) {
-      setChatHistory([]); // Clear previous chat history
+    if (selectedSessionId && selectedSessionId !== currentSessionId) {
+      setChatHistory([]); // Clear previous history
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
-    } else {
-      setChatHistory([]);
     }
-  }, [selectedSessionId]);
+  }, [selectedSessionId, currentSessionId]);
   
-
-
 
   const loadChatHistory = async (sessionId) => {
     try {
@@ -156,9 +152,23 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Deduplicate messages
-      const uniqueMessages = new Map(data.map((msg) => [msg.id, msg]));
-      setChatHistory(Array.from(uniqueMessages.values()));
+      // Deduplicate messages by message content and session ID
+      const uniqueMessages = new Map();
+      data.forEach(message => {
+        const uniqueKey = `${message.session_id}-${message.id}`;
+        if (!uniqueMessages.has(uniqueKey)) {
+          uniqueMessages.set(uniqueKey, message);
+        }
+      });
+  
+      // Only update chat history if messages are different
+      const newChatHistory = Array.from(uniqueMessages.values());
+      setChatHistory(prevChatHistory => {
+        if (JSON.stringify(prevChatHistory) === JSON.stringify(newChatHistory)) {
+          return prevChatHistory; // Avoid updating if the data is identical
+        }
+        return newChatHistory;
+      });
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -170,6 +180,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
 
   const createNewSession = async () => {
