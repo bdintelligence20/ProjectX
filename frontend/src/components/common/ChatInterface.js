@@ -129,23 +129,19 @@ export default function ChatInterface({ selectedSessionId }) {
   }, [chatHistory]);
 
   useEffect(() => {
-    if (selectedSessionId) {
-      console.log('Selected session changed:', selectedSessionId);
+    if (selectedSessionId !== currentSessionId) {
       setCurrentSessionId(selectedSessionId);
-      loadChatHistory(selectedSessionId);
-    } else if (firstLoad) {
-      setFirstLoad(false);
-    } else {
-      setChatHistory([]);
-      setCurrentSessionId(null);
+      if (selectedSessionId) {
+        loadChatHistory(selectedSessionId);
+      } else {
+        setChatHistory([]);
+      }
     }
   }, [selectedSessionId]);
 
   const loadChatHistory = async (sessionId) => {
     try {
       setLoading(true);
-      console.log('Loading chat history for session:', sessionId);
-
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
@@ -153,16 +149,7 @@ export default function ChatInterface({ selectedSessionId }) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-
-      if (data) {
-        const messageMap = new Map(data.map(message => [message.id, message]));
-        const sortedMessages = Array.from(messageMap.values()).sort(
-          (a, b) => new Date(a.created_at) - new Date(b.created_at)
-        );
-        setChatHistory(sortedMessages);
-      } else {
-        setChatHistory([]);
-      }
+      setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -188,6 +175,7 @@ export default function ChatInterface({ selectedSessionId }) {
 
       if (error) throw error;
       setCurrentSessionId(data.id);
+      setChatHistory([]); // Clear history for new session
       return data.id;
     } catch (error) {
       console.error('Error creating new session:', error);
@@ -202,16 +190,23 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(true);
       const sessionId = currentSessionId || await createNewSession();
 
+      // Add user message to UI immediately
+      const userMessage = {
+        role: 'user',
+        content: chatInput,
+        session_id: sessionId,
+      };
+      
+      setChatHistory(prev => [...prev, userMessage]);
+
       // Store user message in Supabase
-      const { data: userData, error: userMessageError } = await supabase
+      const { error: userMessageError } = await supabase
         .from('chat_messages')
         .insert([{
           session_id: sessionId,
           role: 'user',
           content: chatInput
-        }])
-        .select()
-        .single();
+        }]);
 
       if (userMessageError) throw userMessageError;
 
@@ -228,6 +223,15 @@ export default function ChatInterface({ selectedSessionId }) {
         searchScope: "whole"
       });
 
+      // Add system response to UI immediately
+      const systemMessage = {
+        role: 'system',
+        content: response.data.answer,
+        session_id: sessionId,
+      };
+      
+      setChatHistory(prev => [...prev, systemMessage]);
+
       // Store system response in Supabase
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
@@ -239,7 +243,6 @@ export default function ChatInterface({ selectedSessionId }) {
 
       if (systemMessageError) throw systemMessageError;
 
-      // Clear input
       setChatInput('');
     } catch (error) {
       console.error('Error in chat submission:', error);
@@ -252,40 +255,6 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!currentSessionId) return;
-
-    const channel = supabase
-      .channel(`chat_messages:${currentSessionId}`)
-      .on('postgres_changes', 
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `session_id=eq.${currentSessionId}`
-        },
-        (payload) => {
-          console.log('Real-time update received:', payload);
-          if (payload.new) {
-            setChatHistory(prev => {
-              if (!prev.some(msg => msg.id === payload.new.id)) {
-                const newMessages = [...prev, payload.new].sort(
-                  (a, b) => new Date(a.created_at) - new Date(b.created_at)
-                );
-                return newMessages;
-              }
-              return prev;
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [currentSessionId]);
 
   return (
     <Box
