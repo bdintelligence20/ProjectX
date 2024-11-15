@@ -151,7 +151,6 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Deduplicate messages by message content and session ID
       const uniqueMessages = new Map();
       data.forEach(message => {
         const uniqueKey = `${message.session_id}-${message.id}`;
@@ -160,13 +159,12 @@ export default function ChatInterface({ selectedSessionId }) {
         }
       });
   
-      // Only update chat history if messages are different
       const newChatHistory = Array.from(uniqueMessages.values());
       setChatHistory(prevChatHistory => {
-        if (JSON.stringify(prevChatHistory) === JSON.stringify(newChatHistory)) {
-          return prevChatHistory; // Avoid updating if the data is identical
+        if (JSON.stringify(prevChatHistory) !== JSON.stringify(newChatHistory)) {
+          return newChatHistory;
         }
-        return newChatHistory;
+        return prevChatHistory;
       });
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -179,6 +177,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
   
 
