@@ -129,8 +129,6 @@ export default function ChatInterface({ selectedSessionId }) {
   }, [chatHistory]);
 
   
-
-  
   
   useEffect(() => {
     if (selectedSessionId && selectedSessionId !== currentSessionId) {

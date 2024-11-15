@@ -109,7 +109,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
     if (user) {
       loadChatSessions();
       
-      // Set up real-time subscription for chat sessions
+      // Set up real-time subscription for chat sessions if needed
       const subscription = supabase
         .channel('chat_sessions_changes')
         .on('postgres_changes', 
@@ -121,7 +121,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           }, 
           (payload) => {
             console.log('New session created:', payload);
-            loadChatSessions();
+            loadChatSessions(); // This should only update newly created sessions
           }
         )
         .on('postgres_changes',
@@ -133,16 +133,17 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           },
           (payload) => {
             console.log('Session deleted:', payload);
-            loadChatSessions();
+            loadChatSessions(); // This should only update deleted sessions
           }
         )
         .subscribe();
-
+  
       return () => {
         subscription.unsubscribe();
       };
     }
   }, [user]);
+  
 
   const loadChatSessions = async () => {
     try {
@@ -248,11 +249,14 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   };
 
 
+  
   const handleSessionClick = (session) => {
     if (currentSessionId !== session.id) {
+      console.log('Session clicked:', session.id);
       onChatSessionClick(session.id);
     }
   };
+  
   
 
   const filteredSessions = chatSessions.filter(session =>
