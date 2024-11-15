@@ -128,37 +128,46 @@ export default function ChatInterface({ selectedSessionId }) {
     scrollToBottom();
   }, [chatHistory]);
 
+  
+
   useEffect(() => {
-    if (selectedSessionId !== currentSessionId) {
+    if (selectedSessionId) {
       setCurrentSessionId(selectedSessionId);
-      if (selectedSessionId) {
-        loadChatHistory(selectedSessionId);
-      } else {
-        setChatHistory([]);
-      }
+      loadChatHistory(selectedSessionId);
+    } else {
+      setChatHistory([]);
     }
   }, [selectedSessionId]);
 
+
+
   const loadChatHistory = async (sessionId) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      setChatHistory(data || []);
+        if (error) throw error;
+        
+        // Create a Map to deduplicate messages by ID
+        const uniqueMessages = new Map();
+        data?.forEach(message => {
+            uniqueMessages.set(message.id, message);
+        });
+        
+        setChatHistory(Array.from(uniqueMessages.values()));
     } catch (error) {
-      console.error('Error loading chat history:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load chat history',
-        severity: 'error'
-      });
+        console.error('Error loading chat history:', error);
+        setSnackbar({
+            open: true,
+            message: 'Failed to load chat history',
+            severity: 'error'
+        });
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
