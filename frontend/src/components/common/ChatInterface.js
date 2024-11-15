@@ -132,11 +132,12 @@ export default function ChatInterface({ selectedSessionId }) {
   
   useEffect(() => {
     if (selectedSessionId && selectedSessionId !== currentSessionId) {
-      setChatHistory([]); // Clear previous history
+      setChatHistory([]); // Clear previous history to avoid duplicates
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
     }
   }, [selectedSessionId, currentSessionId]);
+  
   
 
   const loadChatHistory = async (sessionId) => {

@@ -105,35 +105,34 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const [editTitle, setEditTitle] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
+
   useEffect(() => {
     if (user) {
-      loadChatSessions();
-      
-      // Set up real-time subscription for chat sessions if needed
+      loadChatSessions(); // Initial load
+  
+      // Set up real-time subscription for chat sessions
       const subscription = supabase
         .channel('chat_sessions_changes')
-        .on('postgres_changes', 
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'chat_sessions',
-            filter: `user_id=eq.${user.id}`
-          }, 
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${user.id}` },
           (payload) => {
-            console.log('New session created:', payload);
-            loadChatSessions(); // This should only update newly created sessions
-          }
-        )
-        .on('postgres_changes',
-          {
-            event: 'DELETE',
-            schema: 'public',
-            table: 'chat_sessions',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('Session deleted:', payload);
-            loadChatSessions(); // This should only update deleted sessions
+            if (payload.eventType === 'INSERT') {
+              console.log('New session created:', payload);
+              setChatSessions((prevSessions) => [...prevSessions, payload.new]);
+            } else if (payload.eventType === 'UPDATE') {
+              console.log('Session updated:', payload);
+              setChatSessions((prevSessions) =>
+                prevSessions.map((session) =>
+                  session.id === payload.new.id ? payload.new : session
+                )
+              );
+            } else if (payload.eventType === 'DELETE') {
+              console.log('Session deleted:', payload);
+              setChatSessions((prevSessions) =>
+                prevSessions.filter((session) => session.id !== payload.old.id)
+              );
+            }
           }
         )
         .subscribe();
@@ -143,6 +142,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
       };
     }
   }, [user]);
+  
   
 
   const loadChatSessions = async () => {
@@ -356,17 +356,6 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         >
           <VerifiedUserIcon sx={{ mr: 1 }} />
           Quality Assurance
-        </Typography>
-        <Typography
-          variant="subtitle1"
-          onClick={() => onSectionClick('Data Analysis')}
-          sx={{
-            color: 'text.primary',
-            fontWeight: 500,
-          }}
-        >
-          <DataUsageIcon sx={{ mr: 1 }} />
-          Data Analysis
         </Typography>
       </Navigation>
 
