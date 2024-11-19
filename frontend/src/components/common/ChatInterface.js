@@ -18,6 +18,9 @@ import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
+
+const subscriptionRef = useRef(null);
+
 const SourceCitation = ({ dochubSources }) => {
   if (!dochubSources?.length) return null;
 
@@ -137,6 +140,8 @@ export default function ChatInterface({ selectedSessionId }) {
   }, [chatHistory]);
 
   useEffect(() => {
+    let isActive = true;  // For handling race conditions
+  
     if (!selectedSessionId) {
       console.log('No session selected, clearing chat history');
       setChatHistory([]);
@@ -144,43 +149,44 @@ export default function ChatInterface({ selectedSessionId }) {
       messageCache.current.clear();
       return;
     }
-
+  
     const loadInitialHistory = async () => {
       console.log(`Loading initial history for session: ${selectedSessionId}`);
       setLoading(true);
-      messageCache.current.clear(); // Clear cache when loading new session
-
+      messageCache.current.clear();
+  
       try {
         const { data, error } = await supabase
           .from('chat_messages')
           .select('*')
           .eq('session_id', selectedSessionId)
           .order('created_at', { ascending: true });
-
+  
         if (error) throw error;
-
-        // Process messages and update cache
-        const uniqueMessages = data.filter(message => {
-          if (!messageCache.current.has(message.id)) {
-            messageCache.current.add(message.id);
-            return true;
-          }
-          return false;
+        if (!isActive) return;  // Don't update state if component is unmounting
+  
+        // Create a map for deduplication
+        const messageMap = new Map();
+        data.forEach(message => {
+          messageMap.set(message.id, message);
         });
-
+  
+        const uniqueMessages = Array.from(messageMap.values());
         console.log(`Loaded ${uniqueMessages.length} messages for session ${selectedSessionId}`);
+        
         setChatHistory(uniqueMessages);
         setCurrentSessionId(selectedSessionId);
       } catch (error) {
-        showError(`Failed to load chat history: ${error.message}`);
+        console.error('Failed to load chat history:', error);
       } finally {
-        setLoading(false);
+        if (isActive) setLoading(false);
       }
     };
-
-    // Load initial history and set up real-time subscription
+  
+    // Load initial history
     loadInitialHistory();
-
+  
+    // Set up subscription only after initial load
     const channel = supabase
       .channel(`chat_${selectedSessionId}`)
       .on('postgres_changes', 
@@ -191,20 +197,35 @@ export default function ChatInterface({ selectedSessionId }) {
           filter: `session_id=eq.${selectedSessionId}`
         },
         (payload) => {
+          if (!isActive) return;
           console.log('Received new message:', payload.new);
-          if (!messageCache.current.has(payload.new.id)) {
-            messageCache.current.add(payload.new.id);
-            setChatHistory(prev => [...prev, payload.new]);
-          }
+          
+          // Only add message if it's not already in the history
+          setChatHistory(prev => {
+            if (prev.some(msg => msg.id === payload.new.id)) {
+              return prev;
+            }
+            return [...prev, payload.new];
+          });
         }
-      )
-      .subscribe(status => {
-        console.log(`Subscription status for session ${selectedSessionId}:`, status);
-      });
-
+      );
+  
+    // Store subscription reference
+    subscriptionRef.current = channel;
+  
+    // Subscribe and log status
+    channel.subscribe(status => {
+      console.log(`Subscription status for session ${selectedSessionId}:`, status);
+    });
+  
+    // Cleanup function
     return () => {
-      console.log(`Cleaning up subscription for session ${selectedSessionId}`);
-      channel.unsubscribe();
+      isActive = false;
+      if (subscriptionRef.current) {
+        console.log(`Cleaning up subscription for session ${selectedSessionId}`);
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
     };
   }, [selectedSessionId]);
 
@@ -232,12 +253,23 @@ export default function ChatInterface({ selectedSessionId }) {
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || loading) return;
-
+  
     try {
       setLoading(true);
       const sessionId = currentSessionId || await createNewSession();
-
-      // Store user message in Supabase first
+  
+      // Add user message to UI immediately
+      const userMessage = {
+        role: 'user',
+        content: chatInput,
+        session_id: sessionId,
+        // Add a temporary ID for the message
+        id: `temp-${Date.now()}-user`
+      };
+      
+      setChatHistory(prev => [...prev, userMessage]);
+  
+      // Store user message in Supabase
       const { data: userData, error: userMessageError } = await supabase
         .from('chat_messages')
         .insert([{
@@ -247,22 +279,33 @@ export default function ChatInterface({ selectedSessionId }) {
         }])
         .select()
         .single();
-
+  
       if (userMessageError) throw userMessageError;
-
+  
       // Update session timestamp
       await supabase
         .from('chat_sessions')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', sessionId);
-
+  
       // Send query to backend
       const response = await axios.post('/query', {
         userQuestion: chatInput,
         sessionId: sessionId,
         searchScope: "whole"
       });
-
+  
+      // Add system response to UI immediately
+      const systemMessage = {
+        role: 'system',
+        content: response.data.answer,
+        session_id: sessionId,
+        // Add a temporary ID for the message
+        id: `temp-${Date.now()}-system`
+      };
+      
+      setChatHistory(prev => [...prev, systemMessage]);
+  
       // Store system response in Supabase
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
@@ -271,9 +314,9 @@ export default function ChatInterface({ selectedSessionId }) {
           role: 'system',
           content: response.data.answer
         }]);
-
+  
       if (systemMessageError) throw systemMessageError;
-
+  
       setChatInput('');
     } catch (error) {
       showError(`Failed to send message: ${error.message}`);
