@@ -23,11 +23,10 @@ import { styled } from '@mui/system';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessIcon from '@mui/icons-material/Business';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
-import DataUsageIcon from '@mui/icons-material/DataUsage';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AuthContext from '../../AuthContext';
 import { supabase } from '../../supabaseClient';
 
@@ -57,20 +56,6 @@ const SearchField = styled(TextField)(() => ({
     },
     '&:hover fieldset': {
       borderColor: '#007bff',
-    },
-  },
-}));
-
-const Navigation = styled(Box)(() => ({
-  marginBottom: '20px',
-  '& .MuiTypography-root': {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '10px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    '&:hover': {
-      backgroundColor: 'rgba(0, 123, 255, 0.08)',
     },
   },
 }));
@@ -105,50 +90,43 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const [editTitle, setEditTitle] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-
-
   useEffect(() => {
     if (user) {
       loadChatSessions(); // Initial load
-  
+
       const subscription = supabase
         .channel('chat_sessions_changes')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${user.id}` },
           (payload) => {
-            console.log('Real-time payload received:', payload);
-  
+            console.log('Real-time session change:', payload);
+
             setChatSessions((prevSessions) => {
               const existingIds = new Set(prevSessions.map((session) => session.id));
-  
+
               if (payload.eventType === 'INSERT' && !existingIds.has(payload.new.id)) {
                 return [payload.new, ...prevSessions];
               }
-  
               if (payload.eventType === 'UPDATE') {
                 return prevSessions.map((session) =>
                   session.id === payload.new.id ? payload.new : session
                 );
               }
-  
               if (payload.eventType === 'DELETE') {
                 return prevSessions.filter((session) => session.id !== payload.old.id);
               }
-  
               return prevSessions;
             });
           }
         )
         .subscribe();
-  
+
       return () => {
         subscription.unsubscribe();
       };
     }
   }, [user]);
-  
-  
 
   const loadChatSessions = async () => {
     try {
@@ -167,13 +145,12 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
 
       if (error) throw error;
 
-      // Sort sessions by most recent message or creation date
       const sortedSessions = data.sort((a, b) => {
-        const aLastMessage = a.chat_messages.length > 0 
-          ? Math.max(...a.chat_messages.map(m => new Date(m.created_at)))
+        const aLastMessage = a.chat_messages.length > 0
+          ? Math.max(...a.chat_messages.map((m) => new Date(m.created_at)))
           : new Date(a.created_at);
-        const bLastMessage = b.chat_messages.length > 0 
-          ? Math.max(...b.chat_messages.map(m => new Date(m.created_at)))
+        const bLastMessage = b.chat_messages.length > 0
+          ? Math.max(...b.chat_messages.map((m) => new Date(m.created_at)))
           : new Date(b.created_at);
         return bLastMessage - aLastMessage;
       });
@@ -191,124 +168,34 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
     try {
       const { data, error } = await supabase
         .from('chat_sessions')
-        .insert([
-          { 
-            user_id: user.id,
-            title: `New Chat ${new Date().toLocaleString()}`
-          }
-        ])
+        .insert([{ user_id: user.id, title: `New Chat ${new Date().toLocaleString()}` }])
         .select()
         .single();
-  
+
       if (error) throw error;
-      if (data) {
-        console.log('Created new chat session:', data);
-        setChatSessions(prevSessions => [data, ...prevSessions]);
-        onChatSessionClick(data.id);
-      }
+
+      console.log('New session created:', data);
+      setChatSessions((prev) => [data, ...prev]);
+      onChatSessionClick(data.id);
     } catch (error) {
       console.error('Error creating new chat:', error);
     }
   };
-  
 
-  const handleEditSession = async () => {
-    if (!selectedSession || !editTitle.trim()) return;
-
-    try {
-      const { error } = await supabase
-        .from('chat_sessions')
-        .update({ title: editTitle })
-        .eq('id', selectedSession.id);
-
-      if (error) throw error;
-      setEditDialogOpen(false);
-      setAnchorEl(null);
-      loadChatSessions();
-    } catch (error) {
-      console.error('Error updating session:', error);
-    }
-  };
-
-  const handleDeleteSession = async () => {
-    if (!selectedSession) return;
-
-    try {
-      const { error } = await supabase
-        .from('chat_sessions')
-        .delete()
-        .eq('id', selectedSession.id);
-
-      if (error) throw error;
-      setDeleteDialogOpen(false);
-      setAnchorEl(null);
-      
-      // If the current session was deleted, clear it
-      if (currentSessionId === selectedSession.id) {
-        onChatSessionClick(null);
-      }
-      
-      loadChatSessions();
-    } catch (error) {
-      console.error('Error deleting session:', error);
-    }
-  };
-
-
-  
   const handleSessionClick = (session) => {
     if (currentSessionId !== session.id) {
-      console.log('Session clicked:', session.id);
+      console.log('Switching to session:', session.id);
       onChatSessionClick(session.id);
     }
   };
-  
-  
 
-  const filteredSessions = chatSessions.filter(session =>
+  const filteredSessions = chatSessions.filter((session) =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    // If the date is today
-    if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-      });
-    }
-    // If the date is yesterday
-    else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    }
-    // If the date is this year
-    else if (date.getFullYear() === now.getFullYear()) {
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      });
-    }
-    // If the date is from a previous year
-    else {
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    }
-  };
-
   return (
     <SidebarContainer>
-      {/* Logo */}
       <Logo src="/images/lrmg-logo.png" alt="LRMG Logo" />
-      
-      {/* New Chat Button */}
       <Button
         variant="contained"
         startIcon={<AddIcon />}
@@ -317,18 +204,17 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           mb: 2,
           borderRadius: '12px',
           textTransform: 'none',
-          fontWeight: 600
+          fontWeight: 600,
         }}
       >
         New Chat
       </Button>
-
-      {/* Search Field */}
       <SearchField
         variant="outlined"
         placeholder="Search conversations..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
+        fullWidth
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
@@ -336,38 +222,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
             </InputAdornment>
           ),
         }}
-        fullWidth
       />
-      
-      {/* Navigation */}
-      <Navigation>
-        <Typography
-          variant="subtitle1"
-          onClick={() => onSectionClick('Business Development Research')}
-          sx={{
-            color: 'text.primary',
-            fontWeight: 500,
-          }}
-        >
-          <BusinessIcon sx={{ mr: 1 }} />
-          Business Development Research
-        </Typography>
-        <Typography
-          variant="subtitle1"
-          onClick={() => onSectionClick('Quality Assurance')}
-          sx={{
-            color: 'text.primary',
-            fontWeight: 500,
-          }}
-        >
-          <VerifiedUserIcon sx={{ mr: 1 }} />
-          Quality Assurance
-        </Typography>
-      </Navigation>
-
-      <Divider sx={{ my: 2 }} />
-
-      {/* Chat History */}
       <SearchHistoryContainer>
         <Typography variant="h6" gutterBottom>
           Chat History
@@ -397,103 +252,13 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
               >
                 <ListItemText
                   primary={session.title}
-                  secondary={formatDate(session.updated_at)}
-                  primaryTypographyProps={{
-                    noWrap: true,
-                    style: { 
-                      fontWeight: currentSessionId === session.id ? 600 : 400 
-                    }
-                  }}
-                  secondaryTypographyProps={{
-                    noWrap: true,
-                    style: { fontSize: '0.75rem' }
-                  }}
+                  secondary={session.updated_at}
                 />
-                <ListItemSecondaryAction>
-                  <IconButton
-                    edge="end"
-                    size="small"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setAnchorEl(event.currentTarget);
-                      setSelectedSession(session);
-                    }}
-                  >
-                    <MoreVertIcon />
-                  </IconButton>
-                </ListItemSecondaryAction>
               </ListItem>
             ))}
           </List>
         )}
       </SearchHistoryContainer>
-
-      {/* Session Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-      >
-        <MenuItem
-          onClick={() => {
-            setAnchorEl(null);
-            setEditTitle(selectedSession?.title || '');
-            setEditDialogOpen(true);
-          }}
-        >
-          <EditIcon sx={{ mr: 1 }} fontSize="small" />
-          Rename
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setAnchorEl(null);
-            setDeleteDialogOpen(true);
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
-          Delete
-        </MenuItem>
-      </Menu>
-
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-        <DialogTitle>Rename Chat Session</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="New Title"
-            fullWidth
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleEditSession} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Chat Session</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete this chat session? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleDeleteSession}
-            variant="contained"
-            color="error"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
     </SidebarContainer>
   );
 }
