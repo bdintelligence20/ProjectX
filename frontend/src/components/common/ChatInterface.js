@@ -133,11 +133,10 @@ export default function ChatInterface({ selectedSessionId }) {
   useEffect(() => {
     if (selectedSessionId) {
       console.log('Switching to session (ChatInterface):', selectedSessionId);
-      setChatHistory([]); // Clear previous history
-      loadChatHistory(selectedSessionId); // Fetch new session's history
+      setChatHistory([]); // Clear history before loading
+      loadChatHistory(selectedSessionId); // Load messages for the session
     }
-  }, [selectedSessionId]); // Ensure it triggers ONLY when `selectedSessionId` changes
-  
+  }, [selectedSessionId]);
   
   const loadChatHistory = async (sessionId) => {
     try {
@@ -151,15 +150,20 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Replace chat history with unique messages
-      setChatHistory(data || []); // Ensure no appending happens
-      console.log(`Fetched ${data?.length || 0} messages for session: ${sessionId}`);
+      // Filter unique messages by their ID
+      const uniqueMessages = Array.from(new Set(data.map((msg) => msg.id))).map((id) =>
+        data.find((msg) => msg.id === id)
+      );
+  
+      setChatHistory(uniqueMessages); // Replace history completely
+      console.log(`Fetched ${uniqueMessages.length} unique messages for session: ${sessionId}`);
     } catch (error) {
       console.error('Error loading chat history:', error);
     } finally {
       setLoading(false);
     }
   };
+  
   
   
   
@@ -190,16 +194,18 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(true);
       const sessionId = currentSessionId || (await createNewSession());
   
+      // Optimistically add user message
+      const tempMessageId = `temp-${Date.now()}-user`;
       const userMessage = {
         role: 'user',
         content: chatInput,
         session_id: sessionId,
-        id: `temp-${Date.now()}-user`,
+        id: tempMessageId,
       };
   
-      // Add message optimistically
       setChatHistory((prev) => [...prev, userMessage]);
   
+      // Save message to Supabase
       const { data, error } = await supabase
         .from('chat_messages')
         .insert([{ session_id: sessionId, role: 'user', content: chatInput }])
@@ -208,11 +214,12 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Replace temporary ID with actual one from database
+      // Replace temporary ID with actual ID
       setChatHistory((prev) =>
-        prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: data.id } : msg))
+        prev.map((msg) => (msg.id === tempMessageId ? { ...msg, id: data.id } : msg))
       );
   
+      // Generate system response
       const response = await axios.post('/query', {
         userQuestion: chatInput,
         sessionId,
@@ -228,6 +235,7 @@ export default function ChatInterface({ selectedSessionId }) {
   
       setChatHistory((prev) => [...prev, systemMessage]);
   
+      // Save system message to Supabase
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
         .insert([{ session_id: sessionId, role: 'system', content: response.data.answer }]);
@@ -241,6 +249,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
   
   
