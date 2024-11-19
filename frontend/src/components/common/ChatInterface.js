@@ -132,11 +132,11 @@ export default function ChatInterface({ selectedSessionId }) {
   // Simplified session change effect
   useEffect(() => {
     if (selectedSessionId) {
-      setChatHistory([]); // Clear old history
-      setCurrentSessionId(selectedSessionId);
+      console.log('Loading chat history for session:', selectedSessionId);
       loadChatHistory(selectedSessionId);
     }
   }, [selectedSessionId]);
+  
   
 
   // Straightforward history loading
@@ -151,7 +151,6 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Ensure messages are unique
       setChatHistory((prev) => {
         const existingIds = new Set(prev.map((msg) => msg.id));
         const newMessages = (data || []).filter((msg) => !existingIds.has(msg.id));
@@ -168,6 +167,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
 
   const createNewSession = async () => {
@@ -199,7 +199,6 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(true);
       const sessionId = currentSessionId || (await createNewSession());
   
-      // Add user message to chatHistory
       const userMessage = {
         role: 'user',
         content: chatInput,
@@ -255,6 +254,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
 
   return (
