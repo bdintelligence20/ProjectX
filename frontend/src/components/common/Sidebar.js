@@ -93,36 +93,6 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   useEffect(() => {
     if (user) {
       loadChatSessions();
-  
-      const subscription = supabase
-        .channel('chat_sessions_changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${user.id}` },
-          (payload) => {
-            console.log('Real-time session change:', payload);
-  
-            setChatSessions((prevSessions) => {
-              const existingIds = new Set(prevSessions.map((session) => session.id));
-  
-              if (payload.eventType === 'INSERT' && !existingIds.has(payload.new.id)) {
-                return [payload.new, ...prevSessions];
-              }
-              if (payload.eventType === 'UPDATE') {
-                return prevSessions.map((session) =>
-                  session.id === payload.new.id ? payload.new : session
-                );
-              }
-              if (payload.eventType === 'DELETE') {
-                return prevSessions.filter((session) => session.id !== payload.old.id);
-              }
-              return prevSessions;
-            });
-          }
-        )
-        .subscribe();
-  
-      return () => subscription.unsubscribe();
     }
   }, [user]);
   
@@ -141,9 +111,9 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         `)
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
-
+  
       if (error) throw error;
-
+  
       const sortedSessions = data.sort((a, b) => {
         const aLastMessage = a.chat_messages.length > 0
           ? Math.max(...a.chat_messages.map((m) => new Date(m.created_at)))
@@ -153,15 +123,15 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           : new Date(b.created_at);
         return bLastMessage - aLastMessage;
       });
-
-      console.log('Loaded chat sessions:', sortedSessions);
-      setChatSessions(sortedSessions);
+  
+      setChatSessions(sortedSessions); // Replace existing sessions
     } catch (error) {
       console.error('Error loading chat sessions:', error);
     } finally {
       setLoading(false);
     }
   };
+  
 
   const handleNewChat = async () => {
     try {
