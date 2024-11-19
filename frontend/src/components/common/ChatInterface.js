@@ -19,7 +19,6 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
 
-const subscriptionRef = useRef(null);
 
 const SourceCitation = ({ dochubSources }) => {
   if (!dochubSources?.length) return null;
@@ -114,6 +113,7 @@ export default function ChatInterface({ selectedSessionId }) {
   const [chatHistory, setChatHistory] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
+  const subscriptionRef = useRef(null);
   const chatEndRef = useRef(null);
   const messageCache = useRef(new Set()); // Track message IDs to prevent duplicates
   const [snackbar, setSnackbar] = useState({
@@ -139,6 +139,7 @@ export default function ChatInterface({ selectedSessionId }) {
     scrollToBottom();
   }, [chatHistory]);
 
+  
   useEffect(() => {
     let isActive = true;  // For handling race conditions
   
@@ -228,7 +229,6 @@ export default function ChatInterface({ selectedSessionId }) {
       }
     };
   }, [selectedSessionId]);
-
   const createNewSession = async () => {
     try {
       const { data, error } = await supabase
