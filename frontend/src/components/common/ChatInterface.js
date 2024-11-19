@@ -132,13 +132,12 @@ export default function ChatInterface({ selectedSessionId }) {
   // Simplified session change effect
   useEffect(() => {
     if (selectedSessionId) {
+      setChatHistory([]); // Clear old history
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
-    } else {
-      setChatHistory([]);
-      setCurrentSessionId(null);
     }
   }, [selectedSessionId]);
+  
 
   // Straightforward history loading
   const loadChatHistory = async (sessionId) => {
@@ -149,20 +148,27 @@ export default function ChatInterface({ selectedSessionId }) {
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
-
+  
       if (error) throw error;
-      setChatHistory(data || []);
+  
+      // Ensure messages are unique
+      setChatHistory((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        const newMessages = (data || []).filter((msg) => !existingIds.has(msg.id));
+        return [...prev, ...newMessages];
+      });
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
         open: true,
         message: 'Failed to load chat history',
-        severity: 'error'
+        severity: 'error',
       });
     } finally {
       setLoading(false);
     }
   };
+  
 
   const createNewSession = async () => {
     try {
@@ -191,74 +197,65 @@ export default function ChatInterface({ selectedSessionId }) {
   
     try {
       setLoading(true);
-      const sessionId = currentSessionId || await createNewSession();
+      const sessionId = currentSessionId || (await createNewSession());
   
-      // Add user message to UI immediately
+      // Add user message to chatHistory
       const userMessage = {
         role: 'user',
         content: chatInput,
         session_id: sessionId,
-        // Add a temporary ID for the message
-        id: `temp-${Date.now()}-user`
+        id: `temp-${Date.now()}-user`, // Temporary ID
       };
-      
-      setChatHistory(prev => [...prev, userMessage]);
   
-      // Store user message in Supabase
-      const { data: userData, error: userMessageError } = await supabase
+      setChatHistory((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        return existingIds.has(userMessage.id) ? prev : [...prev, userMessage];
+      });
+  
+      const { data: storedMessage, error: messageError } = await supabase
         .from('chat_messages')
-        .insert([{
-          session_id: sessionId,
-          role: 'user',
-          content: chatInput
-        }])
+        .insert([{ session_id: sessionId, role: 'user', content: chatInput }])
         .select()
         .single();
   
-      if (userMessageError) throw userMessageError;
+      if (messageError) throw messageError;
   
-      // Update session timestamp
-      await supabase
-        .from('chat_sessions')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', sessionId);
+      setChatHistory((prev) =>
+        prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: storedMessage.id } : msg))
+      );
   
-      // Send query to backend
       const response = await axios.post('/query', {
         userQuestion: chatInput,
-        sessionId: sessionId,
-        searchScope: "whole"
+        sessionId,
+        searchScope: 'whole',
       });
   
-      // Add system response to UI immediately
       const systemMessage = {
         role: 'system',
         content: response.data.answer,
         session_id: sessionId,
-        // Add a temporary ID for the message
-        id: `temp-${Date.now()}-system`
+        id: `temp-${Date.now()}-system`,
       };
-      
-      setChatHistory(prev => [...prev, systemMessage]);
   
-      // Store system response in Supabase
+      setChatHistory((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        return existingIds.has(systemMessage.id) ? prev : [...prev, systemMessage];
+      });
+  
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
-        .insert([{
-          session_id: sessionId,
-          role: 'system',
-          content: response.data.answer
-        }]);
+        .insert([{ session_id: sessionId, role: 'system', content: response.data.answer }]);
   
       if (systemMessageError) throw systemMessageError;
   
       setChatInput('');
     } catch (error) {
-      showError(`Failed to send message: ${error.message}`);
+      console.error('Error sending message:', error);
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <Box
