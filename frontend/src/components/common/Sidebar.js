@@ -145,6 +145,8 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const loadChatSessions = async () => {
     try {
       setLoading(true);
+  
+      // Fetch chat sessions and their messages
       const { data, error } = await supabase
         .from('chat_sessions')
         .select(`
@@ -156,28 +158,44 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         `)
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
-
+  
       if (error) throw error;
-
+  
+      if (!data) {
+        console.log('No data fetched');
+        return;
+      }
+  
       // Sort sessions by most recent message or creation date
-      const sortedSessions = data.sort((a, b) => {
-        const aLastMessage = a.chat_messages.length > 0 
-          ? Math.max(...a.chat_messages.map(m => new Date(m.created_at)))
-          : new Date(a.created_at);
-        const bLastMessage = b.chat_messages.length > 0 
-          ? Math.max(...b.chat_messages.map(m => new Date(m.created_at)))
-          : new Date(b.created_at);
-        return bLastMessage - aLastMessage;
-      });
-
+      const sortSessions = (sessions) => {
+        return sessions.sort((a, b) => {
+          const aLastMessage = a.chat_messages.length > 0
+            ? Math.max(...a.chat_messages.map(m => new Date(m.created_at)))
+            : new Date(a.created_at);
+          const bLastMessage = b.chat_messages.length > 0
+            ? Math.max(...b.chat_messages.map(m => new Date(m.created_at)))
+            : new Date(b.created_at);
+          return bLastMessage - aLastMessage;
+        });
+      };
+  
+      // Filter for unique sessions (by ID)
+      const uniqueSessions = data.filter((session, index, self) => 
+        index === self.findIndex(s => s.id === session.id)
+      );
+  
+      const sortedSessions = sortSessions(uniqueSessions);
+  
       console.log('Loaded chat sessions:', sortedSessions);
       setChatSessions(sortedSessions);
+  
     } catch (error) {
       console.error('Error loading chat sessions:', error);
     } finally {
       setLoading(false);
     }
   };
+  
 
   const handleNewChat = async () => {
     try {
