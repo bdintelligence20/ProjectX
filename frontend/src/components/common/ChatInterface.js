@@ -192,81 +192,82 @@ export default function ChatInterface({ selectedSessionId }) {
       throw error;
     }
   };
-    const handleChatSubmit = async () => {
-      if (!chatInput.trim() || loading) return;
-    
-      try {
-        setLoading(true);
-        const sessionId = currentSessionId || (await createNewSession());
-    
-        // Temporary message for immediate UI update
-        const userMessage = {
+  
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim() || loading) return;
+  
+    try {
+      setLoading(true);
+      const sessionId = currentSessionId || (await createNewSession());
+  
+      // Temporary message for immediate UI update
+      const userMessage = {
+        role: 'user',
+        content: chatInput,
+        session_id: sessionId,
+        id: `temp-${Date.now()}-user`
+      };
+  
+      setChatHistory((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        return existingIds.has(userMessage.id) ? prev : [...prev, userMessage];
+      });
+  
+      // Store message in database
+      const { data: userData, error: userMessageError } = await supabase
+        .from('chat_messages')
+        .insert([{
+          session_id: sessionId,
           role: 'user',
-          content: chatInput,
+          content: chatInput
+        }])
+        .select()
+        .single();
+  
+      if (userMessageError) throw userMessageError;
+  
+      // Update message with real database ID
+      setChatHistory((prev) =>
+        prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: userData.id } : msg))
+      );
+  
+      // Send query to backend
+      const response = await axios.post('/query', {
+        userQuestion: chatInput,
+        sessionId: sessionId,
+        searchScope: "whole"
+      });
+  
+      const systemMessage = {
+        role: 'system',
+        content: response.data.answer,
+        session_id: sessionId,
+        id: `temp-${Date.now()}-system`
+      };
+  
+      setChatHistory((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        return existingIds.has(systemMessage.id) ? prev : [...prev, systemMessage];
+      });
+  
+      // Store system message in database
+      const { error: systemMessageError } = await supabase
+        .from('chat_messages')
+        .insert([{
           session_id: sessionId,
-          id: `temp-${Date.now()}-user`
-        };
-    
-        setChatHistory((prev) => {
-          const existingIds = new Set(prev.map((msg) => msg.id));
-          return existingIds.has(userMessage.id) ? prev : [...prev, userMessage];
-        });
-    
-        // Store message in database
-        const { data: userData, error: userMessageError } = await supabase
-          .from('chat_messages')
-          .insert([{
-            session_id: sessionId,
-            role: 'user',
-            content: chatInput
-          }])
-          .select()
-          .single();
-    
-        if (userMessageError) throw userMessageError;
-    
-        // Update message with real database ID
-        setChatHistory((prev) =>
-          prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: userData.id } : msg))
-        );
-    
-        // Send query to backend
-        const response = await axios.post('/query', {
-          userQuestion: chatInput,
-          sessionId: sessionId,
-          searchScope: "whole"
-        });
-    
-        const systemMessage = {
           role: 'system',
-          content: response.data.answer,
-          session_id: sessionId,
-          id: `temp-${Date.now()}-system`
-        };
-    
-        setChatHistory((prev) => {
-          const existingIds = new Set(prev.map((msg) => msg.id));
-          return existingIds.has(systemMessage.id) ? prev : [...prev, systemMessage];
-        });
-    
-        // Store system message in database
-        const { error: systemMessageError } = await supabase
-          .from('chat_messages')
-          .insert([{
-            session_id: sessionId,
-            role: 'system',
-            content: response.data.answer
-          }]);
-    
-        if (systemMessageError) throw systemMessageError;
-    
-        setChatInput('');
-      } catch (error) {
-        showError(`Failed to send message: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
+          content: response.data.answer
+        }]);
+  
+      if (systemMessageError) throw systemMessageError;
+  
+      setChatInput('');
+    } catch (error) {
+      showError(`Failed to send message: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   
   return (
