@@ -130,55 +130,42 @@ export default function ChatInterface({ selectedSessionId }) {
 
   
   
-  useEffect(() => {
-    if (selectedSessionId && selectedSessionId !== currentSessionId) {
-      setChatHistory([]); // Clear previous history to avoid duplicates
-      setCurrentSessionId(selectedSessionId);
-      loadChatHistory(selectedSessionId);
-    }
-  }, [selectedSessionId, currentSessionId]);
-  
-  
+  // In ChatInterface.js, replace the current useEffect and loadChatHistory with:
 
+useEffect(() => {
   const loadChatHistory = async (sessionId) => {
     try {
       setLoading(true);
+      setChatHistory([]); // Clear history before loading new one
+      
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
-  
+
       if (error) throw error;
-  
-      const uniqueMessages = new Map();
-      data.forEach(message => {
-        const uniqueKey = `${message.session_id}-${message.id}`;
-        if (!uniqueMessages.has(uniqueKey)) {
-          uniqueMessages.set(uniqueKey, message);
-        }
-      });
-  
-      const newChatHistory = Array.from(uniqueMessages.values());
-      setChatHistory(prevChatHistory => {
-        if (JSON.stringify(prevChatHistory) !== JSON.stringify(newChatHistory)) {
-          return newChatHistory;
-        }
-        return prevChatHistory;
-      });
+      setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
         open: true,
         message: 'Failed to load chat history',
-        severity: 'error',
+        severity: 'error'
       });
     } finally {
       setLoading(false);
     }
   };
-  
-  
+
+  if (selectedSessionId) {
+    setCurrentSessionId(selectedSessionId);
+    loadChatHistory(selectedSessionId);
+  } else {
+    setChatHistory([]);
+    setCurrentSessionId(null);
+  }
+}, [selectedSessionId]); // Only depend on selectedSessionId
   
 
   const createNewSession = async () => {
