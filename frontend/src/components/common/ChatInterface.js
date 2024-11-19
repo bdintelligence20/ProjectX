@@ -141,6 +141,8 @@ export default function ChatInterface({ selectedSessionId }) {
   const loadChatHistory = async (sessionId) => {
     try {
       setLoading(true);
+      setChatHistory([]); // Clear current history before loading new session
+  
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
@@ -149,7 +151,12 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      setChatHistory(data || []); // Replace chat history completely
+      // Ensure no duplicates are added
+      const uniqueMessages = Array.from(new Set(data.map((msg) => msg.id))).map((id) =>
+        data.find((msg) => msg.id === id)
+      );
+  
+      setChatHistory(uniqueMessages); // Replace chat history
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -161,6 +168,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
   
   
