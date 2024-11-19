@@ -131,12 +131,13 @@ export default function ChatInterface({ selectedSessionId }) {
 
   // Simplified session change effect
   useEffect(() => {
-    if (selectedSessionId) {
+    if (selectedSessionId && currentSessionId !== selectedSessionId) {
       console.log('Switching to session (ChatInterface):', selectedSessionId);
-      setChatHistory([]); // Clear history before loading
-      loadChatHistory(selectedSessionId); // Load messages for the session
+      setCurrentSessionId(selectedSessionId); // Update current session ID
+      loadChatHistory(selectedSessionId); // Fetch messages only for the new session
     }
-  }, [selectedSessionId]);
+  }, [selectedSessionId, currentSessionId]);
+  
   
   const loadChatHistory = async (sessionId) => {
     try {
@@ -150,15 +151,20 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Filter unique messages by their ID
+      // Deduplicate messages based on ID
       const uniqueMessages = Array.from(new Set(data.map((msg) => msg.id))).map((id) =>
         data.find((msg) => msg.id === id)
       );
   
-      setChatHistory(uniqueMessages); // Replace history completely
+      setChatHistory(uniqueMessages); // Fully replace chat history
       console.log(`Fetched ${uniqueMessages.length} unique messages for session: ${sessionId}`);
     } catch (error) {
       console.error('Error loading chat history:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load chat history',
+        severity: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -194,7 +200,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(true);
       const sessionId = currentSessionId || (await createNewSession());
   
-      // Optimistically add user message
+      // Optimistically add the user's message
       const tempMessageId = `temp-${Date.now()}-user`;
       const userMessage = {
         role: 'user',
@@ -214,12 +220,12 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Replace temporary ID with actual ID
+      // Replace the temporary ID with the actual ID from the database
       setChatHistory((prev) =>
         prev.map((msg) => (msg.id === tempMessageId ? { ...msg, id: data.id } : msg))
       );
   
-      // Generate system response
+      // Fetch system response
       const response = await axios.post('/query', {
         userQuestion: chatInput,
         sessionId,
@@ -245,6 +251,11 @@ export default function ChatInterface({ selectedSessionId }) {
       setChatInput('');
     } catch (error) {
       console.error('Failed to send message:', error.message);
+      setSnackbar({
+        open: true,
+        message: 'Failed to send message',
+        severity: 'error',
+      });
     } finally {
       setLoading(false);
     }
