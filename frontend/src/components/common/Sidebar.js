@@ -147,6 +147,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const handleSessionClick = (session) => {
     if (currentSessionId !== session.id) {
       console.log('Switching to session:', session.id);
+      onChatSessionClick(session.id);
     }
   };
 
