@@ -9,7 +9,6 @@ import {
   Snackbar,
   Alert,
   Paper,
-  Link,
   Chip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -113,12 +112,21 @@ export default function ChatInterface({ selectedSessionId }) {
   const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
-  const [firstLoad, setFirstLoad] = useState(true);
+  const messageCache = useRef(new Set()); // Track message IDs to prevent duplicates
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'info'
   });
+
+  const showError = (message) => {
+    console.error(message);
+    setSnackbar({
+      open: true,
+      message,
+      severity: 'error'
+    });
+  };
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -128,45 +136,77 @@ export default function ChatInterface({ selectedSessionId }) {
     scrollToBottom();
   }, [chatHistory]);
 
-  
-  
-  // In ChatInterface.js, replace the current useEffect and loadChatHistory with:
-
-useEffect(() => {
-  const loadChatHistory = async (sessionId) => {
-    try {
-      setLoading(true);
-      setChatHistory([]); // Clear history before loading new one
-      
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setChatHistory(data || []);
-    } catch (error) {
-      console.error('Error loading chat history:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load chat history',
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!selectedSessionId) {
+      console.log('No session selected, clearing chat history');
+      setChatHistory([]);
+      setCurrentSessionId(null);
+      messageCache.current.clear();
+      return;
     }
-  };
 
-  if (selectedSessionId) {
-    setCurrentSessionId(selectedSessionId);
-    loadChatHistory(selectedSessionId);
-  } else {
-    setChatHistory([]);
-    setCurrentSessionId(null);
-  }
-}, [selectedSessionId]); // Only depend on selectedSessionId
-  
+    const loadInitialHistory = async () => {
+      console.log(`Loading initial history for session: ${selectedSessionId}`);
+      setLoading(true);
+      messageCache.current.clear(); // Clear cache when loading new session
+
+      try {
+        const { data, error } = await supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('session_id', selectedSessionId)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        // Process messages and update cache
+        const uniqueMessages = data.filter(message => {
+          if (!messageCache.current.has(message.id)) {
+            messageCache.current.add(message.id);
+            return true;
+          }
+          return false;
+        });
+
+        console.log(`Loaded ${uniqueMessages.length} messages for session ${selectedSessionId}`);
+        setChatHistory(uniqueMessages);
+        setCurrentSessionId(selectedSessionId);
+      } catch (error) {
+        showError(`Failed to load chat history: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Load initial history and set up real-time subscription
+    loadInitialHistory();
+
+    const channel = supabase
+      .channel(`chat_${selectedSessionId}`)
+      .on('postgres_changes', 
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `session_id=eq.${selectedSessionId}`
+        },
+        (payload) => {
+          console.log('Received new message:', payload.new);
+          if (!messageCache.current.has(payload.new.id)) {
+            messageCache.current.add(payload.new.id);
+            setChatHistory(prev => [...prev, payload.new]);
+          }
+        }
+      )
+      .subscribe(status => {
+        console.log(`Subscription status for session ${selectedSessionId}:`, status);
+      });
+
+    return () => {
+      console.log(`Cleaning up subscription for session ${selectedSessionId}`);
+      channel.unsubscribe();
+    };
+  }, [selectedSessionId]);
 
   const createNewSession = async () => {
     try {
@@ -180,11 +220,12 @@ useEffect(() => {
         .single();
 
       if (error) throw error;
+      messageCache.current.clear();
       setCurrentSessionId(data.id);
-      setChatHistory([]); // Clear history for new session
+      setChatHistory([]);
       return data.id;
     } catch (error) {
-      console.error('Error creating new session:', error);
+      showError(`Failed to create new session: ${error.message}`);
       throw error;
     }
   };
@@ -196,23 +237,16 @@ useEffect(() => {
       setLoading(true);
       const sessionId = currentSessionId || await createNewSession();
 
-      // Add user message to UI immediately
-      const userMessage = {
-        role: 'user',
-        content: chatInput,
-        session_id: sessionId,
-      };
-      
-      setChatHistory(prev => [...prev, userMessage]);
-
-      // Store user message in Supabase
-      const { error: userMessageError } = await supabase
+      // Store user message in Supabase first
+      const { data: userData, error: userMessageError } = await supabase
         .from('chat_messages')
         .insert([{
           session_id: sessionId,
           role: 'user',
           content: chatInput
-        }]);
+        }])
+        .select()
+        .single();
 
       if (userMessageError) throw userMessageError;
 
@@ -229,15 +263,6 @@ useEffect(() => {
         searchScope: "whole"
       });
 
-      // Add system response to UI immediately
-      const systemMessage = {
-        role: 'system',
-        content: response.data.answer,
-        session_id: sessionId,
-      };
-      
-      setChatHistory(prev => [...prev, systemMessage]);
-
       // Store system response in Supabase
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
@@ -251,12 +276,7 @@ useEffect(() => {
 
       setChatInput('');
     } catch (error) {
-      console.error('Error in chat submission:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to process your request',
-        severity: 'error'
-      });
+      showError(`Failed to send message: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -293,10 +313,9 @@ useEffect(() => {
           </Box>
         ) : (
           <>
-            
-            {chatHistory.map((message, index) => (
+            {chatHistory.map((message) => (
               <Box
-                key={message.id || `${message.session_id}-${index}`}
+                key={message.id}
                 mb={2}
                 display="flex"
                 justifyContent={message.role === 'user' ? 'flex-end' : 'flex-start'}
