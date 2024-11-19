@@ -132,14 +132,12 @@ export default function ChatInterface({ selectedSessionId }) {
   // Simplified session change effect
   useEffect(() => {
     if (selectedSessionId) {
-      console.log('Loading chat history for session:', selectedSessionId);
-      loadChatHistory(selectedSessionId);
+      console.log('Switching to session:', selectedSessionId);
+      setChatHistory([]); // Clear history on session switch
+      loadChatHistory(selectedSessionId); // Load new session
     }
   }, [selectedSessionId]);
   
-  
-
-  // Straightforward history loading
   const loadChatHistory = async (sessionId) => {
     try {
       setLoading(true);
@@ -151,10 +149,10 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
+      // Ensure no duplicate messages are added
       setChatHistory((prev) => {
         const existingIds = new Set(prev.map((msg) => msg.id));
-        const newMessages = (data || []).filter((msg) => !existingIds.has(msg.id));
-        return [...prev, ...newMessages];
+        return [...prev, ...(data || []).filter((msg) => !existingIds.has(msg.id))];
       });
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -168,30 +166,26 @@ export default function ChatInterface({ selectedSessionId }) {
     }
   };
   
-  
-
   const createNewSession = async () => {
     try {
       const { data, error } = await supabase
         .from('chat_sessions')
-        .insert([{ 
-          user_id: user.id,
-          title: `Chat ${new Date().toLocaleString()}`
-        }])
+        .insert([{ user_id: user.id, title: `Chat ${new Date().toLocaleString()}` }])
         .select()
         .single();
-
+  
       if (error) throw error;
-      messageCache.current.clear();
+  
+      console.log('New session created:', data);
       setCurrentSessionId(data.id);
-      setChatHistory([]);
+      setChatHistory([]); // Clear history for the new session
       return data.id;
     } catch (error) {
-      showError(`Failed to create new session: ${error.message}`);
+      console.error('Failed to create a new session:', error.message);
       throw error;
     }
   };
-
+  
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || loading) return;
   
@@ -203,24 +197,23 @@ export default function ChatInterface({ selectedSessionId }) {
         role: 'user',
         content: chatInput,
         session_id: sessionId,
-        id: `temp-${Date.now()}-user`, // Temporary ID
+        id: `temp-${Date.now()}-user`,
       };
   
-      setChatHistory((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        return existingIds.has(userMessage.id) ? prev : [...prev, userMessage];
-      });
+      // Add message optimistically
+      setChatHistory((prev) => [...prev, userMessage]);
   
-      const { data: storedMessage, error: messageError } = await supabase
+      const { data, error } = await supabase
         .from('chat_messages')
         .insert([{ session_id: sessionId, role: 'user', content: chatInput }])
         .select()
         .single();
   
-      if (messageError) throw messageError;
+      if (error) throw error;
   
+      // Replace temporary ID with actual one from database
       setChatHistory((prev) =>
-        prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: storedMessage.id } : msg))
+        prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: data.id } : msg))
       );
   
       const response = await axios.post('/query', {
@@ -236,10 +229,7 @@ export default function ChatInterface({ selectedSessionId }) {
         id: `temp-${Date.now()}-system`,
       };
   
-      setChatHistory((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        return existingIds.has(systemMessage.id) ? prev : [...prev, systemMessage];
-      });
+      setChatHistory((prev) => [...prev, systemMessage]);
   
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
@@ -249,11 +239,12 @@ export default function ChatInterface({ selectedSessionId }) {
   
       setChatInput('');
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Failed to send message:', error.message);
     } finally {
       setLoading(false);
     }
   };
+  
   
   
 
