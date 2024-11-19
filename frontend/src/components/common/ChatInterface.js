@@ -132,11 +132,12 @@ export default function ChatInterface({ selectedSessionId }) {
   // Simplified session change effect
   useEffect(() => {
     if (selectedSessionId) {
-      console.log('Switching to session:', selectedSessionId);
-      setChatHistory([]); // Clear history on session switch
-      loadChatHistory(selectedSessionId); // Load new session
+      console.log('Switching to session (ChatInterface):', selectedSessionId);
+      setChatHistory([]); // Clear previous history
+      loadChatHistory(selectedSessionId); // Fetch new session's history
     }
-  }, [selectedSessionId]);
+  }, [selectedSessionId]); // Ensure it triggers ONLY when `selectedSessionId` changes
+  
   
   const loadChatHistory = async (sessionId) => {
     try {
@@ -150,19 +151,17 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Deduplicate messages
-      const uniqueMessages = Array.from(new Set(data.map((msg) => msg.id))).map((id) =>
-        data.find((msg) => msg.id === id)
-      );
-  
-      console.log(`Fetched ${uniqueMessages.length} unique messages for session: ${sessionId}`);
-      setChatHistory(uniqueMessages); // Replace chat history
+      // Replace chat history with unique messages
+      setChatHistory(data || []); // Ensure no appending happens
+      console.log(`Fetched ${data?.length || 0} messages for session: ${sessionId}`);
     } catch (error) {
       console.error('Error loading chat history:', error);
     } finally {
       setLoading(false);
     }
   };
+  
+  
   
   const createNewSession = async () => {
     try {
