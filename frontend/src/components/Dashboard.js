@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthContext from '../AuthContext';
 import { Box, Typography, Avatar, IconButton, CircularProgress, Grid } from '@mui/material';
@@ -7,6 +7,7 @@ import FeedbackIcon from '@mui/icons-material/Feedback';
 import BusinessDevelopmentResearch from './BusinessDevelopmentResearch/BusinessDevelopmentResearch';
 import QATool from './QATool/QATool';
 import DataAnalysis from './DataAnalysis/DataAnalysis';
+import debounce from 'lodash/debounce';
 
 export default function Dashboard() {
   const { user, loading } = useContext(AuthContext);
@@ -25,14 +26,18 @@ export default function Dashboard() {
     setActiveSection(section);
   };
 
-  const handleChatSessionClick = (sessionId) => {
-    console.log('Chat session clicked:', sessionId);
-    setCurrentSessionId(sessionId);
-    // If not already in a section, go to Business Development Research
-    if (activeSection === 'default') {
-      setActiveSection('Business Development Research');
-    }
-  };
+  // Debounced function for handling session clicks
+  const handleChatSessionClick = useCallback(
+    debounce((sessionId) => {
+      console.log('Chat session clicked:', sessionId);
+      setCurrentSessionId(sessionId);
+      // If not already in a section, go to Business Development Research
+      if (activeSection === 'default') {
+        setActiveSection('Business Development Research');
+      }
+    }, 300), // Adjust debounce timing as needed
+    [activeSection]
+  );
 
   if (loading) {
     return (

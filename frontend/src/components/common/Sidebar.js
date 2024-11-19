@@ -102,35 +102,25 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
       setLoading(true);
       const { data, error } = await supabase
         .from('chat_sessions')
-        .select(`
-          *,
-          chat_messages (
-            id,
-            created_at
-          )
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
   
       if (error) throw error;
   
-      const sortedSessions = data.sort((a, b) => {
-        const aLastMessage = a.chat_messages.length > 0
-          ? Math.max(...a.chat_messages.map((m) => new Date(m.created_at)))
-          : new Date(a.created_at);
-        const bLastMessage = b.chat_messages.length > 0
-          ? Math.max(...b.chat_messages.map((m) => new Date(m.created_at)))
-          : new Date(b.created_at);
-        return bLastMessage - aLastMessage;
-      });
+      // Deduplicate sessions
+      const uniqueSessions = Array.from(new Set(data.map((session) => session.id))).map((id) =>
+        data.find((session) => session.id === id)
+      );
   
-      setChatSessions(sortedSessions); // Replace existing sessions
+      setChatSessions(uniqueSessions); // Replace existing sessions
     } catch (error) {
       console.error('Error loading chat sessions:', error);
     } finally {
       setLoading(false);
     }
   };
+  
   
 
   const handleNewChat = async () => {
@@ -140,16 +130,19 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         .insert([{ user_id: user.id, title: `New Chat ${new Date().toLocaleString()}` }])
         .select()
         .single();
-
+  
       if (error) throw error;
-
+  
       console.log('New session created:', data);
+  
+      // Add the new session and switch to it
       setChatSessions((prev) => [data, ...prev]);
-      onChatSessionClick(data.id);
+      onChatSessionClick(data.id); // Ensure this sets the current session
     } catch (error) {
       console.error('Error creating new chat:', error);
     }
   };
+  
 
   const handleSessionClick = (session) => {
     if (currentSessionId !== session.id) {
