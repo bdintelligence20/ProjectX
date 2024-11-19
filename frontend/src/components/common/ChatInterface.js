@@ -149,15 +149,9 @@ export default function ChatInterface({ selectedSessionId }) {
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
-  
+
       if (error) throw error;
-  
-      // Deduplicate messages by ID
-      setChatHistory((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        const newMessages = (data || []).filter((msg) => !existingIds.has(msg.id));
-        return [...prev, ...newMessages];
-      });
+      setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -169,7 +163,6 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
-  
 
   const createNewSession = async () => {
     try {
@@ -192,28 +185,26 @@ export default function ChatInterface({ selectedSessionId }) {
       throw error;
     }
   };
-  
+
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || loading) return;
   
     try {
       setLoading(true);
-      const sessionId = currentSessionId || (await createNewSession());
+      const sessionId = currentSessionId || await createNewSession();
   
-      // Temporary message for immediate UI update
+      // Add user message to UI immediately
       const userMessage = {
         role: 'user',
         content: chatInput,
         session_id: sessionId,
+        // Add a temporary ID for the message
         id: `temp-${Date.now()}-user`
       };
+      
+      setChatHistory(prev => [...prev, userMessage]);
   
-      setChatHistory((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        return existingIds.has(userMessage.id) ? prev : [...prev, userMessage];
-      });
-  
-      // Store message in database
+      // Store user message in Supabase
       const { data: userData, error: userMessageError } = await supabase
         .from('chat_messages')
         .insert([{
@@ -226,10 +217,11 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (userMessageError) throw userMessageError;
   
-      // Update message with real database ID
-      setChatHistory((prev) =>
-        prev.map((msg) => (msg.id === userMessage.id ? { ...msg, id: userData.id } : msg))
-      );
+      // Update session timestamp
+      await supabase
+        .from('chat_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', sessionId);
   
       // Send query to backend
       const response = await axios.post('/query', {
@@ -238,19 +230,18 @@ export default function ChatInterface({ selectedSessionId }) {
         searchScope: "whole"
       });
   
+      // Add system response to UI immediately
       const systemMessage = {
         role: 'system',
         content: response.data.answer,
         session_id: sessionId,
+        // Add a temporary ID for the message
         id: `temp-${Date.now()}-system`
       };
+      
+      setChatHistory(prev => [...prev, systemMessage]);
   
-      setChatHistory((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        return existingIds.has(systemMessage.id) ? prev : [...prev, systemMessage];
-      });
-  
-      // Store system message in database
+      // Store system response in Supabase
       const { error: systemMessageError } = await supabase
         .from('chat_messages')
         .insert([{
@@ -268,8 +259,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
-  
-  
+
   return (
     <Box
       flex={1}
