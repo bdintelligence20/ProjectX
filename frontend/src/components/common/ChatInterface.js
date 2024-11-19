@@ -113,24 +113,14 @@ export default function ChatInterface({ selectedSessionId }) {
   const [chatHistory, setChatHistory] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
-  const subscriptionRef = useRef(null);
   const chatEndRef = useRef(null);
-  const messageCache = useRef(new Set()); // Track message IDs to prevent duplicates
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'info'
   });
 
-  const showError = (message) => {
-    console.error(message);
-    setSnackbar({
-      open: true,
-      message,
-      severity: 'error'
-    });
-  };
-
+  // Simple scroll effect
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -139,96 +129,41 @@ export default function ChatInterface({ selectedSessionId }) {
     scrollToBottom();
   }, [chatHistory]);
 
-  
+  // Simplified session change effect
   useEffect(() => {
-    let isActive = true;  // For handling race conditions
-  
-    if (!selectedSessionId) {
-      console.log('No session selected, clearing chat history');
+    if (selectedSessionId) {
+      setCurrentSessionId(selectedSessionId);
+      loadChatHistory(selectedSessionId);
+    } else {
       setChatHistory([]);
       setCurrentSessionId(null);
-      messageCache.current.clear();
-      return;
     }
-  
-    const loadInitialHistory = async () => {
-      console.log(`Loading initial history for session: ${selectedSessionId}`);
-      setLoading(true);
-      messageCache.current.clear();
-  
-      try {
-        const { data, error } = await supabase
-          .from('chat_messages')
-          .select('*')
-          .eq('session_id', selectedSessionId)
-          .order('created_at', { ascending: true });
-  
-        if (error) throw error;
-        if (!isActive) return;  // Don't update state if component is unmounting
-  
-        // Create a map for deduplication
-        const messageMap = new Map();
-        data.forEach(message => {
-          messageMap.set(message.id, message);
-        });
-  
-        const uniqueMessages = Array.from(messageMap.values());
-        console.log(`Loaded ${uniqueMessages.length} messages for session ${selectedSessionId}`);
-        
-        setChatHistory(uniqueMessages);
-        setCurrentSessionId(selectedSessionId);
-      } catch (error) {
-        console.error('Failed to load chat history:', error);
-      } finally {
-        if (isActive) setLoading(false);
-      }
-    };
-  
-    // Load initial history
-    loadInitialHistory();
-  
-    // Set up subscription only after initial load
-    const channel = supabase
-      .channel(`chat_${selectedSessionId}`)
-      .on('postgres_changes', 
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `session_id=eq.${selectedSessionId}`
-        },
-        (payload) => {
-          if (!isActive) return;
-          console.log('Received new message:', payload.new);
-          
-          // Only add message if it's not already in the history
-          setChatHistory(prev => {
-            if (prev.some(msg => msg.id === payload.new.id)) {
-              return prev;
-            }
-            return [...prev, payload.new];
-          });
-        }
-      );
-  
-    // Store subscription reference
-    subscriptionRef.current = channel;
-  
-    // Subscribe and log status
-    channel.subscribe(status => {
-      console.log(`Subscription status for session ${selectedSessionId}:`, status);
-    });
-  
-    // Cleanup function
-    return () => {
-      isActive = false;
-      if (subscriptionRef.current) {
-        console.log(`Cleaning up subscription for session ${selectedSessionId}`);
-        subscriptionRef.current.unsubscribe();
-        subscriptionRef.current = null;
-      }
-    };
   }, [selectedSessionId]);
+
+  // Straightforward history loading
+  const loadChatHistory = async (sessionId) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setChatHistory(data || []);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load chat history',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const createNewSession = async () => {
     try {
       const { data, error } = await supabase
