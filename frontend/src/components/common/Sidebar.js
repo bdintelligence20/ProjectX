@@ -110,29 +110,31 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   useEffect(() => {
     if (user) {
       loadChatSessions(); // Initial load
-  
       const subscription = supabase
         .channel('chat_sessions_changes')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${user.id}` },
           (payload) => {
-            if (payload.eventType === 'INSERT') {
-              setChatSessions(prevSessions => [payload.new, ...prevSessions]);
-            } else if (payload.eventType === 'UPDATE') {
-              setChatSessions(prevSessions =>
-                prevSessions.map(session =>
+            setChatSessions((prevSessions) => {
+              const sessionExists = prevSessions.some((session) => session.id === payload.new.id);
+              if (payload.eventType === 'INSERT' && !sessionExists) {
+                return [payload.new, ...prevSessions];
+              }
+              if (payload.eventType === 'UPDATE') {
+                return prevSessions.map((session) =>
                   session.id === payload.new.id ? payload.new : session
-                )
-              );
-            } else if (payload.eventType === 'DELETE') {
-              setChatSessions(prevSessions =>
-                prevSessions.filter(session => session.id !== payload.old.id)
-              );
-            }
+                );
+              }
+              if (payload.eventType === 'DELETE') {
+                return prevSessions.filter((session) => session.id !== payload.old.id);
+              }
+              return prevSessions;
+            });
           }
         )
         .subscribe();
+    
   
       return () => {
         subscription.unsubscribe();
