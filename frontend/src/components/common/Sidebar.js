@@ -91,10 +91,12 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && chatSessions.length === 0) {
+      // Only load sessions if user exists and sessions are not already loaded
       loadChatSessions();
     }
-  }, [user]);
+  }, [user]); // Depend only on `user`
+  
   
 
   const loadChatSessions = async () => {
@@ -146,10 +148,12 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
 
   const handleSessionClick = (session) => {
     if (currentSessionId !== session.id) {
-      console.log('Switching to session:', session.id);
-      onChatSessionClick(session.id);
+      console.log('Switching to session (Sidebar):', session.id);
+      onChatSessionClick(session.id); // Notify Dashboard
     }
   };
+  
+  
 
   const filteredSessions = chatSessions.filter((session) =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase())
