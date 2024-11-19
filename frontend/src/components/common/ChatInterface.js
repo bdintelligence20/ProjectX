@@ -149,8 +149,7 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Replace the chat history with new session data
-      setChatHistory(data || []);
+      setChatHistory(data || []); // Replace chat history completely
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -162,6 +161,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
   
   const createNewSession = async () => {
