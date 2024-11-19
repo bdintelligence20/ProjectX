@@ -92,8 +92,8 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
 
   useEffect(() => {
     if (user) {
-      loadChatSessions(); // Initial load
-
+      loadChatSessions();
+  
       const subscription = supabase
         .channel('chat_sessions_changes')
         .on(
@@ -101,10 +101,10 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${user.id}` },
           (payload) => {
             console.log('Real-time session change:', payload);
-
+  
             setChatSessions((prevSessions) => {
               const existingIds = new Set(prevSessions.map((session) => session.id));
-
+  
               if (payload.eventType === 'INSERT' && !existingIds.has(payload.new.id)) {
                 return [payload.new, ...prevSessions];
               }
@@ -121,12 +121,11 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           }
         )
         .subscribe();
-
-      return () => {
-        subscription.unsubscribe();
-      };
+  
+      return () => subscription.unsubscribe();
     }
   }, [user]);
+  
 
   const loadChatSessions = async () => {
     try {

@@ -149,11 +149,8 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Ensure no duplicate messages are added
-      setChatHistory((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        return [...prev, ...(data || []).filter((msg) => !existingIds.has(msg.id))];
-      });
+      // Replace the chat history with new session data
+      setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
@@ -165,6 +162,7 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
+  
   
   const createNewSession = async () => {
     try {
