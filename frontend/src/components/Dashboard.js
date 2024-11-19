@@ -27,17 +27,14 @@ export default function Dashboard() {
   };
 
   // Debounced function for handling session clicks
-  const handleChatSessionClick = useCallback(
-    debounce((sessionId) => {
-      console.log('Chat session clicked:', sessionId);
-      setCurrentSessionId(sessionId);
-      // If not already in a section, go to Business Development Research
-      if (activeSection === 'default') {
-        setActiveSection('Business Development Research');
-      }
-    }, 300), // Adjust debounce timing as needed
-    [activeSection]
-  );
+  const handleChatSessionClick = (sessionId) => {
+    if (currentSessionId !== sessionId) {
+      console.log('Chat session clicked (Dashboard):', sessionId);
+      setCurrentSessionId(sessionId); // Update the current session
+      setActiveSection('Business Development Research'); // Ensure correct section is active
+    }
+  };
+  
 
   if (loading) {
     return (
