@@ -112,6 +112,19 @@ export default function ChatInterface({ selectedSessionId }) {
   const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
 
   // Load chat history when session changes
   useEffect(() => {
@@ -153,6 +166,29 @@ export default function ChatInterface({ selectedSessionId }) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createNewSession = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .insert([{ 
+          user_id: user.id, 
+          title: `Chat ${new Date().toLocaleString()}`
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('New session created:', data);
+      setCurrentSessionId(data.id);
+      setChatHistory([]);
+      return data.id;
+    } catch (error) {
+      console.error('Failed to create new session:', error);
+      throw error;
     }
   };
 
@@ -214,13 +250,15 @@ export default function ChatInterface({ selectedSessionId }) {
       };
 
       // Save AI response to Supabase
-      const { error: systemError } = await supabase
+      const { data: savedSystemMessage, error: systemError } = await supabase
         .from('chat_messages')
-        .insert([systemMessage]);
+        .insert([systemMessage])
+        .select()
+        .single();
 
       if (systemError) throw systemError;
 
-      setChatHistory((prev) => [...prev, systemMessage]);
+      setChatHistory((prev) => [...prev, savedSystemMessage]);
       setChatInput('');
 
     } catch (error) {
