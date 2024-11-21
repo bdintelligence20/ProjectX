@@ -84,20 +84,12 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
   const [chatSessions, setChatSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedSession, setSelectedSession] = useState(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (user && chatSessions.length === 0) {
-      // Only load sessions if user exists and sessions are not already loaded
+    if (user) {
       loadChatSessions();
     }
-  }, [user]); // Depend only on `user`
-  
-  
+  }, [user]);
 
   const loadChatSessions = async () => {
     try {
@@ -107,53 +99,46 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
         .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
-  
+
       if (error) throw error;
-  
-      // Deduplicate sessions
-      const uniqueSessions = Array.from(new Set(data.map((session) => session.id))).map((id) =>
-        data.find((session) => session.id === id)
-      );
-  
-      setChatSessions(uniqueSessions); // Replace existing sessions
+
+      const uniqueSessions = Array.from(new Set(data.map((session) => session.id)))
+        .map((id) => data.find((session) => session.id === id));
+
+      setChatSessions(uniqueSessions);
     } catch (error) {
       console.error('Error loading chat sessions:', error);
     } finally {
       setLoading(false);
     }
   };
-  
-  
 
   const handleNewChat = async () => {
     try {
       const { data, error } = await supabase
         .from('chat_sessions')
-        .insert([{ user_id: user.id, title: `New Chat ${new Date().toLocaleString()}` }])
+        .insert([{ 
+          user_id: user.id, 
+          title: `New Chat ${new Date().toLocaleString()}`
+        }])
         .select()
         .single();
-  
+
       if (error) throw error;
-  
-      console.log('New session created:', data);
-  
-      // Add the new session and switch to it
+
       setChatSessions((prev) => [data, ...prev]);
-      onChatSessionClick(data.id); // Ensure this sets the current session
+      onChatSessionClick(data.id);
     } catch (error) {
       console.error('Error creating new chat:', error);
     }
   };
-  
 
   const handleSessionClick = (session) => {
+    console.log('Clicking session:', session.id, 'Current:', currentSessionId);
     if (currentSessionId !== session.id) {
-      console.log('Switching to session (Sidebar):', session.id);
-      onChatSessionClick(session.id); // Notify parent (Dashboard)
+      onChatSessionClick(session.id);
     }
   };
-  
-  
 
   const filteredSessions = chatSessions.filter((session) =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -189,7 +174,7 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
           ),
         }}
       />
-      <SearchHistoryContainer>
+       <SearchHistoryContainer>
         <Typography variant="h6" gutterBottom>
           Chat History
         </Typography>
@@ -208,17 +193,24 @@ function Sidebar({ onSectionClick, onChatSessionClick, currentSessionId }) {
                 sx={{
                   borderRadius: '8px',
                   mb: 1,
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(0, 123, 255, 0.08)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0, 123, 255, 0.12)',
-                    },
+                  backgroundColor: currentSessionId === session.id 
+                    ? 'rgba(0, 123, 255, 0.08)'
+                    : 'transparent',
+                  '&:hover': {
+                    backgroundColor: currentSessionId === session.id
+                      ? 'rgba(0, 123, 255, 0.12)'
+                      : 'rgba(0, 0, 0, 0.04)'
                   },
                 }}
               >
                 <ListItemText
                   primary={session.title}
-                  secondary={session.updated_at}
+                  secondary={new Date(session.updated_at).toLocaleString()}
+                  primaryTypographyProps={{
+                    style: {
+                      fontWeight: currentSessionId === session.id ? 600 : 400
+                    }
+                  }}
                 />
               </ListItem>
             ))}

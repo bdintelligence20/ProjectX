@@ -112,51 +112,122 @@ export default function ChatInterface({ selectedSessionId }) {
   const [currentSessionId, setCurrentSessionId] = useState(selectedSessionId);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: '',
-    severity: 'info'
-  });
 
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Load chat history when session changes
   useEffect(() => {
-    scrollToBottom();
-  }, [chatHistory]);
-
-  useEffect(() => {
-    if (selectedSessionId && currentSessionId !== selectedSessionId) {
-      console.log('Switching to session (ChatInterface):', selectedSessionId);
+    console.log('Session ID changed:', selectedSessionId, 'Current:', currentSessionId);
+    if (selectedSessionId && selectedSessionId !== currentSessionId) {
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
     }
-  }, [selectedSessionId, currentSessionId]);
-  
+  }, [selectedSessionId]);
+
   const loadChatHistory = async (sessionId) => {
+    if (!sessionId) return;
+    
     try {
       setLoading(true);
-  
+      console.log('Loading chat history for session:', sessionId);
+      
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
-  
+
       if (error) throw error;
-  
-      const uniqueMessages = Array.from(new Set(data.map((msg) => msg.id))).map((id) =>
-        data.find((msg) => msg.id === id)
-      );
-  
+
+      const uniqueMessages = Array.from(
+        new Set(data.map((msg) => msg.id))
+      ).map((id) => data.find((msg) => msg.id === id));
+
+      console.log(`Loaded ${uniqueMessages.length} messages for session:`, sessionId);
       setChatHistory(uniqueMessages);
-      console.log(`Fetched ${uniqueMessages.length} unique messages for session: ${sessionId}`);
+      
     } catch (error) {
       console.error('Error loading chat history:', error);
       setSnackbar({
         open: true,
         message: 'Failed to load chat history',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim() || loading) return;
+
+    try {
+      setLoading(true);
+      const sessionId = currentSessionId || (await createNewSession());
+
+      // Add user message optimistically
+      const userMessage = {
+        role: 'user',
+        content: chatInput,
+        session_id: sessionId,
+        id: `temp-${Date.now()}-user`,
+      };
+
+      setChatHistory((prev) => [...prev, userMessage]);
+
+      // Save to Supabase
+      const { data: savedMessage, error } = await supabase
+        .from('chat_messages')
+        .insert([{ 
+          session_id: sessionId, 
+          role: 'user', 
+          content: chatInput 
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update temporary message with saved one
+      setChatHistory((prev) => 
+        prev.map((msg) => 
+          msg.id === userMessage.id ? savedMessage : msg
+        )
+      );
+
+      // Prepare recent chat history for context
+      const recentHistory = chatHistory.slice(-5).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Get AI response
+      const response = await axios.post('/query', {
+        userQuestion: chatInput,
+        sessionId,
+        chatHistory: recentHistory
+      });
+
+      // Add AI response
+      const systemMessage = {
+        role: 'system',
+        content: response.data.answer,
+        session_id: sessionId,
+      };
+
+      // Save AI response to Supabase
+      const { error: systemError } = await supabase
+        .from('chat_messages')
+        .insert([systemMessage]);
+
+      if (systemError) throw systemError;
+
+      setChatHistory((prev) => [...prev, systemMessage]);
+      setChatInput('');
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to send message',
         severity: 'error',
       });
     } finally {
