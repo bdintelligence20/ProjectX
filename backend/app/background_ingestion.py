@@ -29,63 +29,55 @@ class BackgroundIngestion:
         self.supabase = app.supabase
         self.monitored_buckets = list(url_buckets.values()) + list(file_buckets.values())
 
-    def get_processed_files(self):
+    def get_bucket_contents(self, bucket_name):
+        """Get files and their metadata from a Supabase bucket."""
         try:
-            response = self.supabase.table('processed_files').select('*').execute()
-            return {item['file_metadata'] for item in response.data}
+            files = self.supabase.storage.from_(bucket_name).list()
+            return {
+                file['name']: file.get('metadata', {}).get('last_modified', '')
+                for file in files if 'name' in file
+            }
         except Exception as e:
-            logging.error(f"Error loading processed files: {str(e)}")
-            return set()
+            logging.error(f"Error getting contents of bucket {bucket_name}: {str(e)}")
+            return {}
 
-    def add_processed_file(self, file_metadata):
+    def get_existing_vectors(self, filename, namespace="global_knowledge_base"):
+        """Check if vectors already exist in Pinecone for this file."""
         try:
-            self.supabase.table('processed_files').insert({
-                'file_metadata': file_metadata
-            }).execute()
+            fetch_response = index.fetch(
+                ids=[f"{filename}_*"],
+                namespace=namespace
+            )
+            return bool(fetch_response.vectors)
         except Exception as e:
-            logging.error(f"Error saving processed file: {str(e)}")
+            logging.error(f"Error checking Pinecone vectors for {filename}: {str(e)}")
+            return False
 
-    def generate_and_store_summary(self, file_path, file_type, category, source_id):
+    def get_existing_summary(self, source_id):
+        """Check if summary already exists for this file."""
         try:
-            # Check if summary already exists
-            existing_summary = self.supabase.table('source_summaries')\
+            response = self.supabase.table('source_summaries')\
                 .select('*')\
                 .eq('source_id', source_id)\
                 .execute()
-
-            if existing_summary.data:
-                logging.info(f"Summary already exists for {source_id}")
-                return True
-
-            # Extract text and generate new summary
-            text = extract_text_from_file(file_path, file_type)
-            summary = generate_source_summary(text, category)
-            
-            if summary:
-                # Store with original category format (with underscores)
-                self.supabase.table('source_summaries').insert({
-                    'source_id': source_id,
-                    'category': category,  # Keep underscores
-                    'summary': summary
-                }).execute()
-                logging.info(f"Summary generated and stored for {source_id}")
-                return True
+            return bool(response.data)
         except Exception as e:
-            logging.error(f"Error generating summary: {str(e)}")
+            logging.error(f"Error checking summary for {source_id}: {str(e)}")
             return False
 
     def process_file(self, bucket_name, filename, file_info):
+        """Process a single file if it hasn't been processed before."""
         temp_path = f"/tmp/{filename}"
         try:
+            # Check if this file is already processed in both Pinecone and summaries
+            if self.get_existing_vectors(filename) and self.get_existing_summary(filename):
+                logging.info(f"File {filename} already fully processed. Skipping.")
+                return True
+
+            # Download and process file
             with open(temp_path, 'wb') as f:
-                try:
-                    file_data = self.supabase.storage.from_(bucket_name).download(filename)
-                    f.write(file_data)
-                except Exception as e:
-                    if 'Duplicate' in str(e):
-                        logging.warning(f"Duplicate file in Supabase: {filename} - continuing with processing")
-                    else:
-                        raise e
+                file_data = self.supabase.storage.from_(bucket_name).download(filename)
+                f.write(file_data)
 
             file_extension = filename.split('.')[-1].lower()
             category = next(
@@ -94,26 +86,31 @@ class BackgroundIngestion:
                 bucket_name
             )
 
-            # Generate and store summary first
-            summary_success = self.generate_and_store_summary(
-                file_path=temp_path,
-                file_type=file_extension,
-                category=category,
-                source_id=filename
-            )
+            # Extract text from file
+            text = extract_text_from_file(temp_path, file_extension)
+            if not text:
+                logging.error(f"Could not extract text from {filename}")
+                return False
 
-            if summary_success:
-                # Only process for Pinecone if summary was successful
-                process_source(
-                    file_path=temp_path,
-                    file_type=file_extension,
-                    source_id=filename,
-                    bucket_name=bucket_name,
-                    file_name=filename
-                )
+            # Generate and store summary if needed
+            if not self.get_existing_summary(filename):
+                summary = generate_source_summary(text, category)
+                if summary:
+                    self.supabase.table('source_summaries').insert({
+                        'source_id': filename,
+                        'category': category,
+                        'summary': summary
+                    }).execute()
+                    logging.info(f"Generated and stored summary for {filename}")
 
-            return summary_success
-            
+            # Process for Pinecone if needed
+            if not self.get_existing_vectors(filename):
+                chunks = chunk_text(text)
+                store_in_pinecone(filename, chunks, namespace="global_knowledge_base")
+                logging.info(f"Processed and stored vectors for {filename}")
+
+            return True
+
         except Exception as e:
             logging.error(f"Failed to process {filename}: {str(e)}")
             return False
@@ -122,27 +119,24 @@ class BackgroundIngestion:
                 os.remove(temp_path)
 
     def check_and_process_buckets(self):
+        """Check all monitored buckets and process new or updated files."""
         with self.app.app_context():
             try:
-                processed_files = self.get_processed_files()
-                
                 for bucket_name in self.monitored_buckets:
-                    files = self.supabase.storage.from_(bucket_name).list()
+                    current_files = self.get_bucket_contents(bucket_name)
                     
-                    for file_info in files:
-                        filename = file_info['name']
-                        file_key = f"{bucket_name}/{filename}"
-                        file_metadata = f"{file_key}_{file_info.get('metadata', {}).get('last_modified', '')}"
-                        
-                        if file_metadata not in processed_files:
-                            if self.process_file(bucket_name, filename, file_info):
-                                self.add_processed_file(file_metadata)
-                                logging.info(f"Processed and summarized {filename} from {bucket_name}")
+                    for filename, metadata in current_files.items():
+                        try:
+                            self.process_file(bucket_name, filename, {'metadata': {'last_modified': metadata}})
+                        except Exception as e:
+                            logging.error(f"Error processing {filename} from {bucket_name}: {str(e)}")
+                            continue
 
             except Exception as e:
                 logging.error(f"Error in background ingestion: {str(e)}")
 
     def start(self):
+        """Start the background scheduler."""
         self.scheduler.add_job(
             self.check_and_process_buckets,
             'interval',
