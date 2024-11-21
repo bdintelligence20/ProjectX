@@ -324,7 +324,6 @@ def add_source():
         return jsonify({"error": str(e)}), 500
 
 
-
 @bp.route('/query', methods=['POST'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def query():
@@ -344,23 +343,7 @@ def query():
         if dochub_texts:
             response = query_llm(dochub_texts, user_question)
 
-            try:
-                # Store the question and answer in Supabase
-                supabase.table('chat_messages').insert([
-                    {
-                        'session_id': session_id,
-                        'role': 'user',
-                        'content': user_question
-                    },
-                    {
-                        'session_id': session_id,
-                        'role': 'system',
-                        'content': response
-                    }
-                ]).execute()
-            except Exception as e:
-                logging.error(f"Error storing chat messages in Supabase: {str(e)}")
-
+            # Remove the Supabase insert since it's already happening in the frontend
             return jsonify({
                 "answer": response,
                 "dochubSources": dochub_texts
