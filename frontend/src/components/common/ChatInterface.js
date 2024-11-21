@@ -18,8 +18,6 @@ import { supabase } from '../../supabaseClient';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 
-
-
 const SourceCitation = ({ dochubSources }) => {
   if (!dochubSources?.length) return null;
 
@@ -120,7 +118,6 @@ export default function ChatInterface({ selectedSessionId }) {
     severity: 'info'
   });
 
-  // Simple scroll effect
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -129,15 +126,13 @@ export default function ChatInterface({ selectedSessionId }) {
     scrollToBottom();
   }, [chatHistory]);
 
-  // Simplified session change effect
   useEffect(() => {
     if (selectedSessionId && currentSessionId !== selectedSessionId) {
       console.log('Switching to session (ChatInterface):', selectedSessionId);
-      setCurrentSessionId(selectedSessionId); // Update current session ID
-      loadChatHistory(selectedSessionId); // Fetch messages only for the new session
+      setCurrentSessionId(selectedSessionId);
+      loadChatHistory(selectedSessionId);
     }
   }, [selectedSessionId, currentSessionId]);
-  
   
   const loadChatHistory = async (sessionId) => {
     try {
@@ -151,12 +146,11 @@ export default function ChatInterface({ selectedSessionId }) {
   
       if (error) throw error;
   
-      // Deduplicate messages based on ID
       const uniqueMessages = Array.from(new Set(data.map((msg) => msg.id))).map((id) =>
         data.find((msg) => msg.id === id)
       );
   
-      setChatHistory(uniqueMessages); // Fully replace chat history
+      setChatHistory(uniqueMessages);
       console.log(`Fetched ${uniqueMessages.length} unique messages for session: ${sessionId}`);
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -170,9 +164,6 @@ export default function ChatInterface({ selectedSessionId }) {
     }
   };
   
-  
-  
-  
   const createNewSession = async () => {
     try {
       const { data, error } = await supabase
@@ -185,12 +176,22 @@ export default function ChatInterface({ selectedSessionId }) {
   
       console.log('New session created:', data);
       setCurrentSessionId(data.id);
-      setChatHistory([]); // Clear history for the new session
+      setChatHistory([]);
       return data.id;
     } catch (error) {
       console.error('Failed to create a new session:', error.message);
       throw error;
     }
+  };
+
+  // Prepare chat history for API
+  const prepareHistoryForApi = (history, maxMessages = 5) => {
+    // Take the last few messages for context
+    const recentMessages = history.slice(-maxMessages);
+    return recentMessages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
   };
   
   const handleChatSubmit = async () => {
@@ -225,11 +226,15 @@ export default function ChatInterface({ selectedSessionId }) {
         prev.map((msg) => (msg.id === tempMessageId ? { ...msg, id: data.id } : msg))
       );
   
-      // Fetch system response
+      // Prepare chat history for API
+      const recentHistory = prepareHistoryForApi(chatHistory);
+
+      // Fetch system response with chat history
       const response = await axios.post('/query', {
         userQuestion: chatInput,
         sessionId,
         searchScope: 'whole',
+        chatHistory: recentHistory // Include recent chat history
       });
   
       const systemMessage = {
@@ -260,10 +265,6 @@ export default function ChatInterface({ selectedSessionId }) {
       setLoading(false);
     }
   };
-  
-  
-  
-  
 
   return (
     <Box

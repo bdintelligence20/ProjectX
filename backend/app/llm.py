@@ -12,9 +12,22 @@ load_dotenv()
 # Initialize OpenAI client with API key from environment variable
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def query_llm(dochub_texts, user_question):
+def query_llm(dochub_texts, user_question, chat_history=None):
     try:
-        system_prompt = """You are a helpful research assistant that provides comprehensive answers using internal documentation."""
+        system_prompt = """You are a helpful research assistant that provides comprehensive answers using internal documentation. 
+        Base your responses on the provided DocHub sources and maintain consistency with previous conversation context."""
+
+        # Function to prepare chat history context
+        def format_chat_history(history, max_messages=5):
+            if not history:
+                return ""
+            # Take the last few messages for context
+            recent_messages = history[-max_messages:]
+            formatted_history = []
+            for msg in recent_messages:
+                role = "User" if msg['role'] == 'user' else "Assistant"
+                formatted_history.append(f"{role}: {msg['content']}")
+            return "\n".join(formatted_history)
 
         # Function to truncate context while preserving meaning
         def prepare_context(texts, max_chars=2000):
@@ -24,9 +37,8 @@ def query_llm(dochub_texts, user_question):
             total_chars = 0
             for text in texts:
                 if total_chars + len(text) > max_chars:
-                    # Take first part of remaining text to reach limit
                     remaining = max_chars - total_chars
-                    if remaining > 100:  # Only add if we can include meaningful content
+                    if remaining > 100:
                         context.append(text[:remaining] + "...")
                     break
                 context.append(text)
@@ -35,19 +47,31 @@ def query_llm(dochub_texts, user_question):
 
         # Process DocHub content with limits
         dochub_context = prepare_context(dochub_texts, max_chars=2000)
+        
+        # Format chat history if available
+        chat_context = format_chat_history(chat_history) if chat_history else ""
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "system", "content": f"DocHub Sources:\n{dochub_context}" if dochub_context else "No DocHub sources available."},
-            {"role": "user", "content": user_question}
+            {"role": "system", "content": f"DocHub Sources:\n{dochub_context}" if dochub_context else "No DocHub sources available."}
         ]
 
-        # Query the OpenAI model with reduced tokens
+        # Add chat history context if available
+        if chat_context:
+            messages.append({
+                "role": "system",
+                "content": f"Previous conversation context:\n{chat_context}"
+            })
+
+        # Add the current user question
+        messages.append({"role": "user", "content": user_question})
+
+        # Query the OpenAI model
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
             temperature=0.7,
-            max_tokens=5000,  # Reduced from 5000
+            max_tokens=5000,
             top_p=1,
             frequency_penalty=0.1,
             presence_penalty=0.5,
