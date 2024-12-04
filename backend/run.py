@@ -42,10 +42,6 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
-# Initialize background ingestion
-from app.background_ingestion import init_background_ingestion
-ingestion_service = init_background_ingestion(app)
-
 # Register blueprints for routes
 from app.routes import bp
 app.register_blueprint(bp)
