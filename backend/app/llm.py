@@ -71,7 +71,7 @@ def query_llm(dochub_texts, user_question, chat_history=None):
             model="gpt-5",
             messages=messages,
             temperature=0.7,
-            max_tokens=5000,
+            max_completion_tokens=5000,
             top_p=1,
             frequency_penalty=0.1,
             presence_penalty=0.5,
@@ -120,7 +120,7 @@ def check_quality_with_llm(text):
             model="gpt-5-mini",
             messages=messages,
             temperature=0.2,  # Lower temperature for more consistent corrections
-            max_tokens=3000,
+            max_completion_tokens=3000,
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
@@ -187,7 +187,7 @@ class SourceSummaryHandler:
             response = client.chat.completions.create(
                 model="gpt-5-nano",  # Using gpt-5-nano for efficient summarization
                 messages=messages,
-                max_tokens=1000,
+                max_completion_tokens=1000,
                 temperature=0.5
             )
             return response.choices[0].message.content.strip()
@@ -227,7 +227,7 @@ class SourceSummaryHandler:
             response = client.chat.completions.create(
                 model="gpt-5-nano",
                 messages=messages,
-                max_tokens=2000,
+                max_completion_tokens=2000,
                 temperature=0.5
             )
             return response.choices[0].message.content.strip()

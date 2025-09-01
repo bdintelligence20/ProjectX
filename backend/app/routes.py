@@ -592,6 +592,26 @@ def get_category_summaries(category):
         return jsonify({"error": str(e)}), 500
 
 
+# Test route to verify connectivity
+@bp.route('/apollo/test', methods=['GET', 'POST'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+def apollo_test():
+    """Test route to verify Apollo integration is working"""
+    try:
+        apollo_api_key = os.getenv('APOLLO_API_KEY')
+        logging.info(f"Apollo test route called. API key configured: {bool(apollo_api_key)}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Apollo integration test successful",
+            "api_key_configured": bool(apollo_api_key),
+            "timestamp": "now"
+        }), 200
+    except Exception as e:
+        logging.error(f"Error in Apollo test route: {str(e)}")
+        return jsonify({"error": f"Test failed: {str(e)}"}), 500
+
+
 # Apollo.io Integration Routes
 @bp.route('/apollo/people-search', methods=['POST'])
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
