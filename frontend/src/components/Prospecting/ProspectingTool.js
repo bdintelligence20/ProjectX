@@ -149,33 +149,78 @@ function ProspectingTool() {
     setTabValue(newValue);
   };
 
-  const handlePeopleSearch = async () => {
-    setLoading(true);
+  const handleTestConnection = async () => {
     try {
-      const response = await fetch('/api/apollo/people-search', {
+      console.log('Testing Apollo connection...');
+      const response = await fetch('/apollo/test', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.access_token}`,
-        },
-        body: JSON.stringify({
-          person_titles: peopleSearch.personTitles,
-          person_seniorities: peopleSearch.personSeniorities,
-          person_locations: peopleSearch.personLocations,
-          organization_locations: peopleSearch.organizationLocations,
-          q_organization_domains_list: peopleSearch.organizationDomains,
-          contact_email_status: peopleSearch.emailStatus,
-          organization_num_employees_ranges: peopleSearch.companySize ? [peopleSearch.companySize] : [],
-          q_keywords: peopleSearch.keywords,
-          page: 1,
-          per_page: 20
-        })
+        }
       });
       
+      console.log('Test response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Test response data:', data);
+        alert(`Connection test successful! API key configured: ${data.api_key_configured}`);
+      } else {
+        const errorText = await response.text();
+        console.error('Test response error:', errorText);
+        alert(`Connection test failed: ${response.status} - ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Test connection error:', error);
+      alert(`Connection test failed: ${error.message}`);
+    }
+  };
+
+  const handlePeopleSearch = async () => {
+    setLoading(true);
+    console.log('Starting people search...', peopleSearch);
+    
+    try {
+      const requestBody = {
+        person_titles: peopleSearch.personTitles,
+        person_seniorities: peopleSearch.personSeniorities,
+        person_locations: peopleSearch.personLocations,
+        organization_locations: peopleSearch.organizationLocations,
+        q_organization_domains_list: peopleSearch.organizationDomains,
+        contact_email_status: peopleSearch.emailStatus,
+        organization_num_employees_ranges: peopleSearch.companySize ? [peopleSearch.companySize] : [],
+        q_keywords: peopleSearch.keywords,
+        page: 1,
+        per_page: 20
+      };
+      
+      console.log('Request body:', requestBody);
+      console.log('User context:', user);
+      
+      const response = await fetch('/apollo/people-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.access_token || 'no-token'}`,
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
       const data = await response.json();
+      console.log('Response data:', data);
       setPeopleResults(data.contacts || []);
     } catch (error) {
       console.error('Error searching people:', error);
+      alert(`Search failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -183,32 +228,48 @@ function ProspectingTool() {
 
   const handleCompanySearch = async () => {
     setLoading(true);
+    console.log('Starting company search...', companySearch);
+    
     try {
-      const response = await fetch('/api/apollo/company-search', {
+      const requestBody = {
+        q_organization_name: companySearch.companyName,
+        organization_locations: companySearch.locations,
+        organization_num_employees_ranges: companySearch.employeeRange ? [companySearch.employeeRange] : [],
+        revenue_range: {
+          min: companySearch.revenueMin ? parseInt(companySearch.revenueMin) : undefined,
+          max: companySearch.revenueMax ? parseInt(companySearch.revenueMax) : undefined
+        },
+        q_organization_keyword_tags: companySearch.industries,
+        currently_using_any_of_technology_uids: companySearch.technologies,
+        page: 1,
+        per_page: 20
+      };
+      
+      console.log('Request body:', requestBody);
+      
+      const response = await fetch('/apollo/company-search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.access_token}`,
+          'Authorization': `Bearer ${user?.access_token || 'no-token'}`,
         },
-        body: JSON.stringify({
-          q_organization_name: companySearch.companyName,
-          organization_locations: companySearch.locations,
-          organization_num_employees_ranges: companySearch.employeeRange ? [companySearch.employeeRange] : [],
-          revenue_range: {
-            min: companySearch.revenueMin ? parseInt(companySearch.revenueMin) : undefined,
-            max: companySearch.revenueMax ? parseInt(companySearch.revenueMax) : undefined
-          },
-          q_organization_keyword_tags: companySearch.industries,
-          currently_using_any_of_technology_uids: companySearch.technologies,
-          page: 1,
-          per_page: 20
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
       const data = await response.json();
+      console.log('Response data:', data);
       setCompanyResults(data.organizations || []);
     } catch (error) {
       console.error('Error searching companies:', error);
+      alert(`Search failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -216,7 +277,7 @@ function ProspectingTool() {
 
   const saveProspect = async (prospect, type) => {
     try {
-      const response = await fetch('/api/prospects/save', {
+      const response = await fetch('/prospects/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,6 +308,14 @@ function ProspectingTool() {
         <Typography variant="body1" sx={{ color: '#64748b' }}>
           Find and research potential customers using Apollo.io
         </Typography>
+        <Button 
+          onClick={handleTestConnection}
+          variant="outlined"
+          size="small"
+          sx={{ mt: 2 }}
+        >
+          Test Connection
+        </Button>
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: '#ffffff' }}>
