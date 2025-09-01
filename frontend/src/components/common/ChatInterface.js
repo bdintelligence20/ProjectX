@@ -77,18 +77,35 @@ const MessageContent = ({ message }) => {
     <Paper
       elevation={0}
       sx={{
-        maxWidth: '70%',
-        backgroundColor: message.role === "user" ? '#007AFF' : '#f8fafc',
-        color: message.role === "user" ? 'white' : 'inherit',
-        borderRadius: '12px',
-        padding: '12px 16px',
-        marginLeft: message.role === "user" ? '30%' : '0',
-        marginRight: message.role === "user" ? '0' : '30%',
+        maxWidth: '75%',
+        backgroundColor: message.role === "user" ? '#1a2332' : '#ffffff',
+        color: message.role === "user" ? 'white' : '#1a2332',
+        borderRadius: message.role === "user" ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+        padding: '16px 20px',
+        marginLeft: message.role === "user" ? '25%' : '0',
+        marginRight: message.role === "user" ? '0' : '25%',
         border: message.role === "user" ? 'none' : '1px solid #e2e8f0',
+        boxShadow: message.role === "user" 
+          ? '0 2px 8px rgba(26, 35, 50, 0.15)'
+          : '0 2px 8px rgba(0, 0, 0, 0.08)',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        '&:hover': {
+          transform: 'translateY(-1px)',
+          boxShadow: message.role === "user"
+            ? '0 4px 12px rgba(26, 35, 50, 0.25)'
+            : '0 4px 12px rgba(0, 0, 0, 0.12)',
+        }
       }}
     >
       {message.role === "user" ? (
-        <Typography variant="body1">
+        <Typography 
+          variant="body1" 
+          sx={{ 
+            fontSize: '1rem',
+            lineHeight: 1.5,
+            fontWeight: 400
+          }}
+        >
           {content}
         </Typography>
       ) : (
@@ -128,19 +145,21 @@ export default function ChatInterface({ selectedSessionId }) {
 
   // Load chat history when session changes
   useEffect(() => {
-    console.log('Session ID changed:', selectedSessionId, 'Current:', currentSessionId);
     if (selectedSessionId && selectedSessionId !== currentSessionId) {
       setCurrentSessionId(selectedSessionId);
       loadChatHistory(selectedSessionId);
+    } else if (!selectedSessionId) {
+      // Clear chat when no session selected
+      setChatHistory([]);
+      setCurrentSessionId(null);
     }
-  }, [selectedSessionId]);
+  }, [selectedSessionId, currentSessionId]);
 
   const loadChatHistory = async (sessionId) => {
     if (!sessionId) return;
     
     try {
       setLoading(true);
-      console.log('Loading chat history for session:', sessionId);
       
       const { data, error } = await supabase
         .from('chat_messages')
@@ -154,7 +173,6 @@ export default function ChatInterface({ selectedSessionId }) {
         new Set(data.map((msg) => msg.id))
       ).map((id) => data.find((msg) => msg.id === id));
 
-      console.log(`Loaded ${uniqueMessages.length} messages for session:`, sessionId);
       setChatHistory(uniqueMessages);
       
     } catch (error) {
@@ -273,43 +291,120 @@ export default function ChatInterface({ selectedSessionId }) {
     }
   };
 
+  const EmptyState = () => (
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      height="100%"
+      sx={{ px: 4, textAlign: 'center' }}
+    >
+      <Typography 
+        variant="h4" 
+        sx={{ 
+          color: '#1a2332',
+          fontWeight: 600,
+          mb: 2,
+          fontSize: '2rem'
+        }}
+      >
+        Ready to Research?
+      </Typography>
+      
+      <Typography 
+        variant="body1" 
+        sx={{ 
+          color: '#64748b',
+          mb: 4,
+          fontSize: '1.1rem',
+          lineHeight: 1.6,
+          maxWidth: '500px'
+        }}
+      >
+        Ask me anything about companies, markets, or upload documents for analysis. 
+        I'm here to help with your research needs.
+      </Typography>
+
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', mb: 4 }}>
+        {[
+          "Analyze this company's financial performance",
+          "Research market trends in tech industry", 
+          "Summarize this quarterly report",
+          "Find competitors for this business"
+        ].map((prompt) => (
+          <Chip
+            key={prompt}
+            label={prompt}
+            onClick={() => setChatInput(prompt)}
+            sx={{
+              backgroundColor: '#faf9f7',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              px: 2,
+              py: 1,
+              fontSize: '0.9rem',
+              color: '#1a2332',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: '#ff6b66',
+                color: 'white',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 8px rgba(255, 107, 102, 0.2)',
+              }
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+
   return (
     <Box
       flex={1}
       display="flex"
       flexDirection="column"
       height="100vh"
-      backgroundColor="#fafafa"
+      sx={{ backgroundColor: '#faf9f7' }}
     >
       <Box 
         flex="1 1 auto" 
-        p={2} 
+        p={3} 
         overflow="auto"
         sx={{
           '&::-webkit-scrollbar': {
-            width: '8px',
+            width: '6px',
           },
           '&::-webkit-scrollbar-track': {
-            background: '#f1f1f1',
+            background: 'transparent',
           },
           '&::-webkit-scrollbar-thumb': {
-            background: '#888',
-            borderRadius: '4px',
+            background: '#cbd5e0',
+            borderRadius: '3px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: '#a0aec0',
           },
         }}
       >
         {loading && chatHistory.length === 0 ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-            <CircularProgress />
+            <CircularProgress sx={{ color: '#1a2332' }} />
           </Box>
+        ) : chatHistory.length === 0 ? (
+          <EmptyState />
         ) : (
           <>
             {chatHistory.map((message) => (
               <Box
                 key={message.id}
-                mb={2}
+                mb={3}
                 display="flex"
                 justifyContent={message.role === 'user' ? 'flex-end' : 'flex-start'}
+                sx={{
+                  animation: 'fadeIn 0.3s ease-out'
+                }}
               >
                 <MessageContent message={message} />
               </Box>
@@ -321,18 +416,23 @@ export default function ChatInterface({ selectedSessionId }) {
 
       <Box 
         flex="0 1 auto" 
-        p={2} 
+        p={3} 
         display="flex" 
         alignItems="center" 
-        borderTop="1px solid #ddd"
-        backgroundColor="#ffffff"
+        gap={2}
+        sx={{
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid #e2e8f0',
+          borderRadius: '24px 24px 0 0',
+          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.05)'
+        }}
       >
         <TextField
           fullWidth
           multiline
           maxRows={4}
           variant="outlined"
-          placeholder="Type your message..."
+          placeholder="Ask me anything about your research..."
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
           onKeyPress={(e) => {
@@ -342,33 +442,52 @@ export default function ChatInterface({ selectedSessionId }) {
             }
           }}
           disabled={loading}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-          }}
           sx={{
             '& .MuiOutlinedInput-root': {
-              borderRadius: '12px',
-            }
+              borderRadius: '20px',
+              backgroundColor: '#faf9f7',
+              fontSize: '1rem',
+              '& fieldset': {
+                borderColor: 'transparent',
+              },
+              '&:hover fieldset': {
+                borderColor: '#ff6b66',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#ff6b66',
+                borderWidth: '2px',
+              },
+            },
+            '& .MuiInputBase-input': {
+              padding: '16px 20px',
+            },
           }}
         />
         <Button
           variant="contained"
-          color="primary"
           onClick={handleChatSubmit}
           disabled={loading || !chatInput.trim()}
           sx={{ 
-            ml: 1,
-            borderRadius: '12px',
-            minWidth: '100px',
-            height: '56px'
+            borderRadius: '20px',
+            minWidth: '120px',
+            height: '56px',
+            backgroundColor: '#1a2332',
+            fontSize: '1rem',
+            fontWeight: 600,
+            textTransform: 'none',
+            '&:hover': {
+              backgroundColor: '#2d3748',
+              transform: 'translateY(-1px)',
+            },
+            '&:disabled': {
+              backgroundColor: '#94a3b8',
+            },
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 8px rgba(26, 35, 50, 0.15)',
           }}
           endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
         >
-          Send
+          {loading ? 'Thinking...' : 'Send'}
         </Button>
       </Box>
 

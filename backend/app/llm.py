@@ -68,7 +68,7 @@ def query_llm(dochub_texts, user_question, chat_history=None):
 
         # Query the OpenAI model
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=messages,
             temperature=0.7,
             max_tokens=5000,
@@ -117,7 +117,7 @@ def check_quality_with_llm(text):
 
         # Query the model
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             temperature=0.2,  # Lower temperature for more consistent corrections
             max_tokens=3000,
@@ -185,7 +185,7 @@ class SourceSummaryHandler:
             ]
 
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Using 3.5-turbo for better rate limits
+                model="gpt-5-nano",  # Using gpt-5-nano for efficient summarization
                 messages=messages,
                 max_tokens=1000,
                 temperature=0.5
@@ -225,7 +225,7 @@ class SourceSummaryHandler:
             ]
 
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-5-nano",
                 messages=messages,
                 max_tokens=2000,
                 temperature=0.5

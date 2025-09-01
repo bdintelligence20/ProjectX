@@ -5,6 +5,7 @@ import { Box, Typography, Avatar, IconButton, CircularProgress, Grid } from '@mu
 import Sidebar from './common/Sidebar';
 import FeedbackIcon from '@mui/icons-material/Feedback';
 import BusinessDevelopmentResearch from './BusinessDevelopmentResearch/BusinessDevelopmentResearch';
+import ProspectingTool from './Prospecting/ProspectingTool';
 import QATool from './QATool/QATool';
 import DataAnalysis from './DataAnalysis/DataAnalysis';
 import debounce from 'lodash/debounce';
@@ -12,8 +13,8 @@ import debounce from 'lodash/debounce';
 export default function Dashboard() {
   const { user, loading } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState('default');
   const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [currentView, setCurrentView] = useState('research'); // 'research' or 'prospecting'
 
   React.useEffect(() => {
     if (!loading && !user) {
@@ -21,103 +22,101 @@ export default function Dashboard() {
     }
   }, [user, loading, navigate]);
 
-  const handleSectionClick = (section) => {
-    console.log('Section clicked:', section);
-    setActiveSection(section);
-  };
-
-  // Debounced function for handling session clicks
+  // Handle chat session selection from sidebar
   const handleChatSessionClick = (sessionId) => {
     if (currentSessionId !== sessionId) {
       console.log('Chat session clicked (Dashboard):', sessionId);
-      setCurrentSessionId(sessionId); // Only update here
+      setCurrentSessionId(sessionId);
+      setCurrentView('research');
     }
   };
-  
-  
+
+  // Handle prospecting view
+  const handleProspectingClick = () => {
+    setCurrentView('prospecting');
+    setCurrentSessionId(null);
+  };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <CircularProgress />
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh" sx={{ backgroundColor: '#faf9f7' }}>
+        <CircularProgress sx={{ color: '#1a2332' }} />
       </Box>
     );
   }
 
-  const cards = [
-    { title: "Business Development Research" },
-  ];
-
   return (
-    <Box display="flex" height="100vh">
-      {/* Sidebar with Clickable Navigation */}
+    <Box display="flex" height="100vh" sx={{ backgroundColor: '#faf9f7' }}>
+      {/* Enhanced Sidebar */}
       <Sidebar 
-        onSectionClick={handleSectionClick}
         onChatSessionClick={handleChatSessionClick}
         currentSessionId={currentSessionId}
+        onProspectingClick={handleProspectingClick}
+        currentView={currentView}
       />
 
-      {/* Main Content Area */}
+      {/* Main Chat Interface */}
       <Box flex={1} display="flex" flexDirection="column">
-        {activeSection === 'default' ? (
-          <Box p={3}>
-            {/* Top Bar */}
-            <Box display="flex" justifyContent="space-between" marginBottom="20px">
-              <Typography variant="h5">How can I help you today?</Typography>
-              <Avatar alt="User Avatar" src="/static/images/avatar/1.jpg" />
-            </Box>
+        {/* Header Bar */}
+        <Box 
+          display="flex" 
+          justifyContent="space-between" 
+          alignItems="center"
+          p={3}
+          sx={{ 
+            backgroundColor: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              color: '#1a2332',
+              fontWeight: 600,
+              fontSize: '1.5rem'
+            }}
+          >
+            {currentView === 'prospecting' ? 'Sales Prospecting' : 'Research Assistant'}
+          </Typography>
+          <Avatar 
+            alt={user?.email || "User"} 
+            sx={{ 
+              backgroundColor: '#ff6b66',
+              color: 'white',
+              width: 40,
+              height: 40
+            }}
+          >
+            {user?.email?.charAt(0).toUpperCase() || 'U'}
+          </Avatar>
+        </Box>
 
-            {/* Default Card Layout */}
-            <Grid container spacing={3}>
-              {cards.map((card, index) => (
-                <Grid item xs={12} sm={6} key={index}>
-                  <Box
-                    sx={{
-                      background: 'linear-gradient(45deg, #FF0000, #FF6F00)',
-                      color: 'white',
-                      borderRadius: '16px',
-                      height: '200px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textAlign: 'center',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s ease-in-out',
-                      '&:hover': {
-                        transform: 'scale(1.02)',
-                      },
-                    }}
-                    onClick={() => setActiveSection(card.title)}
-                  >
-                    <Typography variant="h6">{card.title}</Typography>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        ) : activeSection === 'Business Development Research' ? (
-          <BusinessDevelopmentResearch currentSessionId={currentSessionId} />
-        ) : activeSection === 'Quality Assurance' ? (
-          <QATool currentSessionId={currentSessionId} />
-        ) : activeSection === 'Data Analysis' ? (
-          <DataAnalysis currentSessionId={currentSessionId} />
+        {/* Main Content Interface */}
+        {currentView === 'prospecting' ? (
+          <ProspectingTool />
         ) : (
-          <Box p={3}>Other Section Content</Box>
+          <BusinessDevelopmentResearch currentSessionId={currentSessionId} />
         )}
       </Box>
 
-      {/* Feedback Button */}
+      {/* Floating Feedback Button */}
       <IconButton
         sx={{ 
           position: 'fixed', 
-          right: 20, 
-          bottom: 20, 
-          backgroundColor: '#6200EA', 
+          right: 24, 
+          bottom: 24, 
+          backgroundColor: '#1a2332', 
           color: 'white',
+          width: 56,
+          height: 56,
           '&:hover': {
-            backgroundColor: '#7C4DFF',
+            backgroundColor: '#2d3748',
+            transform: 'scale(1.05)',
           },
-          boxShadow: '0 3px 5px 2px rgba(98, 0, 234, .3)'
+          transition: 'all 0.2s ease',
+          boxShadow: '0 4px 12px rgba(26, 35, 50, 0.3)',
+          zIndex: 1000
         }}
         size="large"
       >

@@ -10,6 +10,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // In development mode, provide a mock user
+    if (process.env.NODE_ENV === 'development') {
+      const mockUser = {
+        id: 'dev-user-123',
+        email: 'dev@example.com',
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+      };
+      setUser(mockUser);
+      setSession({ user: mockUser });
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);

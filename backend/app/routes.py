@@ -18,6 +18,8 @@ import urllib.parse
 import nltk
 import logging
 import difflib
+import requests
+import re
 
 # Configure logging to show all debug messages
 logging.basicConfig(level=logging.DEBUG, force=True)
@@ -588,3 +590,227 @@ def get_category_summaries(category):
     except Exception as e:
         logging.error(f"Error fetching summaries: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+# Apollo.io Integration Routes
+@bp.route('/apollo/people-search', methods=['POST'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+def apollo_people_search():
+    """Search for people using Apollo.io API"""
+    try:
+        data = request.json
+        logging.debug(f"Apollo people search request: {data}")
+        
+        # Get Apollo API key from environment
+        apollo_api_key = os.getenv('APOLLO_API_KEY')
+        if not apollo_api_key:
+            return jsonify({"error": "Apollo API key not configured"}), 500
+        
+        # Build Apollo API request
+        apollo_payload = {}
+        
+        # Add search parameters if provided
+        if data.get('person_titles'):
+            apollo_payload['person_titles'] = data['person_titles']
+        if data.get('person_seniorities'):
+            apollo_payload['person_seniorities'] = data['person_seniorities']
+        if data.get('person_locations'):
+            apollo_payload['person_locations'] = data['person_locations']
+        if data.get('organization_locations'):
+            apollo_payload['organization_locations'] = data['organization_locations']
+        if data.get('q_organization_domains_list'):
+            apollo_payload['q_organization_domains_list'] = data['q_organization_domains_list']
+        if data.get('contact_email_status'):
+            apollo_payload['contact_email_status'] = data['contact_email_status']
+        if data.get('organization_num_employees_ranges'):
+            apollo_payload['organization_num_employees_ranges'] = data['organization_num_employees_ranges']
+        if data.get('q_keywords'):
+            apollo_payload['q_keywords'] = data['q_keywords']
+        
+        # Pagination
+        apollo_payload['page'] = data.get('page', 1)
+        apollo_payload['per_page'] = data.get('per_page', 20)
+        
+        # Make request to Apollo API
+        apollo_url = 'https://api.apollo.io/api/v1/mixed_people/search'
+        headers = {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'X-Api-Key': apollo_api_key
+        }
+        
+        logging.debug(f"Making Apollo API request to: {apollo_url}")
+        logging.debug(f"Apollo payload: {apollo_payload}")
+        
+        response = requests.post(apollo_url, json=apollo_payload, headers=headers)
+        
+        if response.status_code == 200:
+            apollo_data = response.json()
+            logging.debug(f"Apollo API response received with {len(apollo_data.get('contacts', []))} contacts")
+            return jsonify(apollo_data), 200
+        else:
+            logging.error(f"Apollo API error: {response.status_code} - {response.text}")
+            return jsonify({"error": f"Apollo API error: {response.status_code}"}), response.status_code
+            
+    except Exception as e:
+        logging.error(f"Error in Apollo people search: {str(e)}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+@bp.route('/apollo/company-search', methods=['POST'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+def apollo_company_search():
+    """Search for companies using Apollo.io API"""
+    try:
+        data = request.json
+        logging.debug(f"Apollo company search request: {data}")
+        
+        # Get Apollo API key from environment
+        apollo_api_key = os.getenv('APOLLO_API_KEY')
+        if not apollo_api_key:
+            return jsonify({"error": "Apollo API key not configured"}), 500
+        
+        # Build Apollo API request
+        apollo_payload = {}
+        
+        # Add search parameters if provided
+        if data.get('q_organization_name'):
+            apollo_payload['q_organization_name'] = data['q_organization_name']
+        if data.get('organization_locations'):
+            apollo_payload['organization_locations'] = data['organization_locations']
+        if data.get('organization_num_employees_ranges'):
+            apollo_payload['organization_num_employees_ranges'] = data['organization_num_employees_ranges']
+        if data.get('revenue_range'):
+            revenue_range = data['revenue_range']
+            if revenue_range.get('min'):
+                apollo_payload['revenue_range[min]'] = revenue_range['min']
+            if revenue_range.get('max'):
+                apollo_payload['revenue_range[max]'] = revenue_range['max']
+        if data.get('q_organization_keyword_tags'):
+            apollo_payload['q_organization_keyword_tags'] = data['q_organization_keyword_tags']
+        if data.get('currently_using_any_of_technology_uids'):
+            apollo_payload['currently_using_any_of_technology_uids'] = data['currently_using_any_of_technology_uids']
+        
+        # Pagination
+        apollo_payload['page'] = data.get('page', 1)
+        apollo_payload['per_page'] = data.get('per_page', 20)
+        
+        # Make request to Apollo API
+        apollo_url = 'https://api.apollo.io/api/v1/mixed_companies/search'
+        headers = {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'X-Api-Key': apollo_api_key
+        }
+        
+        logging.debug(f"Making Apollo API request to: {apollo_url}")
+        logging.debug(f"Apollo payload: {apollo_payload}")
+        
+        response = requests.post(apollo_url, json=apollo_payload, headers=headers)
+        
+        if response.status_code == 200:
+            apollo_data = response.json()
+            logging.debug(f"Apollo API response received with {len(apollo_data.get('organizations', []))} organizations")
+            return jsonify(apollo_data), 200
+        else:
+            logging.error(f"Apollo API error: {response.status_code} - {response.text}")
+            return jsonify({"error": f"Apollo API error: {response.status_code}"}), response.status_code
+            
+    except Exception as e:
+        logging.error(f"Error in Apollo company search: {str(e)}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+@bp.route('/prospects/save', methods=['POST'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+def save_prospect():
+    """Save a prospect (person or company) to the database"""
+    try:
+        data = request.json
+        prospect_type = data.get('type')  # 'person' or 'company'
+        prospect_data = data.get('data')
+        user_id = data.get('user_id')
+        
+        if not all([prospect_type, prospect_data, user_id]):
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        # Determine the table based on prospect type
+        table_name = 'saved_prospects' if prospect_type == 'person' else 'saved_companies'
+        
+        # Prepare data for storage
+        save_data = {
+            'user_id': user_id,
+            'prospect_data': prospect_data,
+            'created_at': 'now()',
+            'updated_at': 'now()'
+        }
+        
+        # Add specific fields based on type
+        if prospect_type == 'person':
+            save_data.update({
+                'name': prospect_data.get('name'),
+                'email': prospect_data.get('email'),
+                'title': prospect_data.get('title'),
+                'company': prospect_data.get('organization_name'),
+                'linkedin_url': prospect_data.get('linkedin_url'),
+                'phone': prospect_data.get('phone_numbers', [{}])[0].get('sanitized_number') if prospect_data.get('phone_numbers') else None
+            })
+        else:  # company
+            save_data.update({
+                'company_name': prospect_data.get('name'),
+                'website_url': prospect_data.get('website_url'),
+                'linkedin_url': prospect_data.get('linkedin_url'),
+                'domain': prospect_data.get('primary_domain'),
+                'founded_year': prospect_data.get('founded_year'),
+                'employee_count': None  # Can be extracted from prospect_data if needed
+            })
+        
+        # Save to Supabase
+        response = supabase.table(table_name).insert(save_data).execute()
+        
+        if response.data:
+            logging.debug(f"Prospect saved successfully: {prospect_type}")
+            return jsonify({"message": "Prospect saved successfully", "id": response.data[0]['id']}), 200
+        else:
+            logging.error(f"Error saving prospect: {response}")
+            return jsonify({"error": "Failed to save prospect"}), 500
+            
+    except Exception as e:
+        logging.error(f"Error saving prospect: {str(e)}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+@bp.route('/prospects/list', methods=['GET'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+def list_saved_prospects():
+    """Get list of saved prospects for a user"""
+    try:
+        user_id = request.args.get('user_id')
+        prospect_type = request.args.get('type', 'all')  # 'person', 'company', or 'all'
+        
+        if not user_id:
+            return jsonify({"error": "User ID required"}), 400
+        
+        results = {}
+        
+        if prospect_type in ['person', 'all']:
+            people_response = supabase.table('saved_prospects')\
+                .select('*')\
+                .eq('user_id', user_id)\
+                .order('created_at', desc=True)\
+                .execute()
+            results['people'] = people_response.data
+        
+        if prospect_type in ['company', 'all']:
+            companies_response = supabase.table('saved_companies')\
+                .select('*')\
+                .eq('user_id', user_id)\
+                .order('created_at', desc=True)\
+                .execute()
+            results['companies'] = companies_response.data
+        
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logging.error(f"Error listing prospects: {str(e)}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
