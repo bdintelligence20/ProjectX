@@ -7,7 +7,7 @@ SQLAlchemy
 Werkzeug
 openai
 supabase
-pinecone-client
+pinecone
 python-dotenv
 nltk
 spacy
