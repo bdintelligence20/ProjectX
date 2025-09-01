@@ -16,6 +16,11 @@ import { CircularProgress } from '@mui/material';
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
 
+  // Skip authentication in development mode
+  if (process.env.NODE_ENV === 'development') {
+    return children;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -34,7 +39,7 @@ function App() {
         <HashRouter>
           <Routes>
             {/* Auth Routes */}
-            <Route path="/" element={<Navigate to="/login" />} />
+            <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
