@@ -897,28 +897,40 @@ def apollo_company_search():
         }), 500
 
 
-@bp.route('/prospects/save', methods=['POST'])
+@bp.route('/prospects/save', methods=['POST', 'OPTIONS'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def save_prospect():
     """Save a prospect (person or company) to the database"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
         data = request.json
+        logging.info(f"Save prospect request received: {data.keys()}")
+        
         prospect_type = data.get('type')  # 'person' or 'company'
         prospect_data = data.get('data')
         user_id = data.get('user_id')
         
+        logging.info(f"Save prospect - Type: {prospect_type}, User ID: {user_id}")
+        
         if not all([prospect_type, prospect_data, user_id]):
-            return jsonify({"error": "Missing required fields"}), 400
+            missing = []
+            if not prospect_type: missing.append('type')
+            if not prospect_data: missing.append('data')
+            if not user_id: missing.append('user_id')
+            logging.error(f"Missing required fields: {missing}")
+            return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
         
         # Determine the table based on prospect type
         table_name = 'saved_prospects' if prospect_type == 'person' else 'saved_companies'
+        logging.info(f"Using table: {table_name}")
         
-        # Prepare data for storage
+        # Prepare data for storage - don't use 'now()' string, let Supabase handle it
         save_data = {
             'user_id': user_id,
-            'prospect_data': prospect_data,
-            'created_at': 'now()',
-            'updated_at': 'now()'
+            'prospect_data': prospect_data
         }
         
         # Add specific fields based on type
@@ -942,21 +954,22 @@ def save_prospect():
             })
         
         # Save to Supabase
+        logging.info(f"Attempting to save to Supabase table {table_name}")
         response = supabase.table(table_name).insert(save_data).execute()
         
-        if response.data:
-            logging.debug(f"Prospect saved successfully: {prospect_type}")
+        if response.data and len(response.data) > 0:
+            logging.info(f"Prospect saved successfully: {prospect_type}, ID: {response.data[0].get('id')}")
             return jsonify({"message": "Prospect saved successfully", "id": response.data[0]['id']}), 200
         else:
-            logging.error(f"Error saving prospect: {response}")
-            return jsonify({"error": "Failed to save prospect"}), 500
+            logging.error(f"No data returned from Supabase insert: {response}")
+            return jsonify({"error": "Failed to save prospect - no data returned"}), 500
             
     except Exception as e:
         logging.error(f"Error saving prospect: {str(e)}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
-@bp.route('/prospects/list', methods=['GET'])
+@bp.route('/prospects/list', methods=['GET', 'OPTIONS'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def list_saved_prospects():
     """Get list of saved prospects for a user"""
@@ -973,7 +986,7 @@ def list_saved_prospects():
             people_response = supabase.table('saved_prospects')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .order('created_at', desc=True)\
+                .order('created_at', desc=False)\
                 .execute()
             results['people'] = people_response.data
         
@@ -981,7 +994,7 @@ def list_saved_prospects():
             companies_response = supabase.table('saved_companies')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .order('created_at', desc=True)\
+                .order('created_at', desc=False)\
                 .execute()
             results['companies'] = companies_response.data
         

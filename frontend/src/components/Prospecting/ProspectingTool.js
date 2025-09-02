@@ -101,6 +101,8 @@ function ProspectingTool() {
   const [searchWarning, setSearchWarning] = useState('');
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [creditBalance, setCreditBalance] = useState({ used: 170, total: 3015 }); // You can fetch this from backend
+  const [savedItems, setSavedItems] = useState(new Set()); // Track saved items
+  const [saveMessage, setSaveMessage] = useState(''); // Show save status
   
   // People Search Form State
   const [peopleSearch, setPeopleSearch] = useState({
@@ -235,6 +237,9 @@ function ProspectingTool() {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    if (newValue === 2) {
+      loadSavedProspects(); // Load saved prospects when switching to that tab
+    }
   };
 
   const handleTestConnection = async () => {
@@ -410,25 +415,73 @@ This could be due to:
 
   const saveProspect = async (prospect, type) => {
     try {
+      // Get user ID from the user object (might be user.id or user.user.id depending on structure)
+      const userId = user?.id || user?.user?.id || user?.sub;
+      
+      if (!userId) {
+        console.error('User ID not found:', user);
+        alert('Unable to save: User ID not found. Please try logging in again.');
+        return;
+      }
+
+      console.log('Saving prospect:', { type, userId, prospect });
+      
       const response = await fetch(`${BACKEND_URL}/prospects/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.access_token}`,
+          'Authorization': `Bearer ${user?.access_token || ''}`,
         },
         body: JSON.stringify({
           type,
           data: prospect,
-          user_id: user.id
+          user_id: userId
         })
       });
       
       if (response.ok) {
+        const result = await response.json();
+        console.log('Prospect saved successfully:', result);
+        
         // Update UI to show saved state
-        console.log('Prospect saved successfully');
+        setSavedItems(prev => new Set([...prev, prospect.id]));
+        setSaveMessage(`${type === 'person' ? 'Contact' : 'Company'} saved successfully!`);
+        
+        // Clear message after 3 seconds
+        setTimeout(() => setSaveMessage(''), 3000);
+        
+        // If on saved prospects tab, refresh the list
+        if (tabValue === 2) {
+          loadSavedProspects();
+        }
+      } else {
+        const error = await response.text();
+        console.error('Save failed:', error);
+        alert(`Failed to save ${type}: ${error}`);
       }
     } catch (error) {
       console.error('Error saving prospect:', error);
+      alert(`Error saving ${type}: ${error.message}`);
+    }
+  };
+
+  const loadSavedProspects = async () => {
+    try {
+      const userId = user?.id || user?.user?.id || user?.sub;
+      if (!userId) return;
+      
+      const response = await fetch(`${BACKEND_URL}/prospects/list?user_id=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${user?.access_token || ''}`,
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSavedProspects(data);
+      }
+    } catch (error) {
+      console.error('Error loading saved prospects:', error);
     }
   };
 
@@ -668,6 +721,12 @@ This could be due to:
             </Box>
           </SearchContainer>
 
+          {saveMessage && (
+            <Alert severity="success" sx={{ mb: 2, mx: 3 }}>
+              {saveMessage}
+            </Alert>
+          )}
+
           {searchWarning && (
             <Alert severity="warning" sx={{ mb: 2, mx: 3 }}>
               <AlertTitle>Search Results Limited</AlertTitle>
@@ -729,9 +788,9 @@ This could be due to:
                     </Box>
                     <IconButton
                       onClick={() => saveProspect(person, 'person')}
-                      sx={{ color: '#1a2332' }}
+                      sx={{ color: savedItems.has(person.id) ? '#10b981' : '#1a2332' }}
                     >
-                      <BookmarkBorderIcon />
+                      {savedItems.has(person.id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
                     </IconButton>
                   </Box>
                   
@@ -914,9 +973,9 @@ This could be due to:
                     </Box>
                     <IconButton
                       onClick={() => saveProspect(company, 'company')}
-                      sx={{ color: '#1a2332' }}
+                      sx={{ color: savedItems.has(company.id) ? '#10b981' : '#1a2332' }}
                     >
-                      <BookmarkBorderIcon />
+                      {savedItems.has(company.id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
                     </IconButton>
                   </Box>
                   
@@ -956,9 +1015,81 @@ This could be due to:
           <Typography variant="h6" sx={{ mb: 3, color: '#1a2332' }}>
             Saved Prospects
           </Typography>
-          <Typography variant="body1" sx={{ color: '#64748b' }}>
-            Your saved prospects will appear here once you save some contacts and companies.
-          </Typography>
+          
+          {savedProspects?.people?.length > 0 || savedProspects?.companies?.length > 0 ? (
+            <Box>
+              {savedProspects?.people?.length > 0 && (
+                <>
+                  <Typography variant="subtitle1" sx={{ mb: 2, color: '#64748b', fontWeight: 600 }}>
+                    Saved Contacts ({savedProspects.people.length})
+                  </Typography>
+                  <ResultsContainer>
+                    {savedProspects.people.map((person) => (
+                      <ProspectCard key={person.id}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="h6" sx={{ color: '#1a2332', mb: 0.5 }}>
+                                {person.name}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: '#64748b' }}>
+                                {person.title} at {person.company}
+                              </Typography>
+                              {person.email && (
+                                <Typography variant="body2" sx={{ color: '#2563eb', mt: 0.5 }}>
+                                  📧 {person.email}
+                                </Typography>
+                              )}
+                              {person.phone && (
+                                <Typography variant="body2" sx={{ color: '#059669', mt: 0.5 }}>
+                                  📱 {person.phone}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </ProspectCard>
+                    ))}
+                  </ResultsContainer>
+                </>
+              )}
+              
+              {savedProspects?.companies?.length > 0 && (
+                <>
+                  <Typography variant="subtitle1" sx={{ mb: 2, mt: 3, color: '#64748b', fontWeight: 600 }}>
+                    Saved Companies ({savedProspects.companies.length})
+                  </Typography>
+                  <ResultsContainer>
+                    {savedProspects.companies.map((company) => (
+                      <ProspectCard key={company.id}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="h6" sx={{ color: '#1a2332', mb: 0.5 }}>
+                                {company.company_name}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: '#64748b' }}>
+                                {company.website_url}
+                              </Typography>
+                              {company.founded_year && (
+                                <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                                  Founded: {company.founded_year}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </ProspectCard>
+                    ))}
+                  </ResultsContainer>
+                </>
+              )}
+            </Box>
+          ) : (
+            <Typography variant="body1" sx={{ color: '#64748b' }}>
+              Your saved prospects will appear here once you save some contacts and companies.
+            </Typography>
+          )}
         </TabPanel>
       </Box>
     </StyledContainer>
