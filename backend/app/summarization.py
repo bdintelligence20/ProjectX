@@ -27,8 +27,7 @@ def summarize_text(text, max_length=500):
                 {"role": "system", "content": f"You are a helpful assistant that provides concise summaries. Summarize the following text in approximately {max_length} tokens."},
                 {"role": "user", "content": text}
             ],
-            max_completion_tokens=max_length,
-            temperature=0.5
+            max_completion_tokens=max_length
         )
         
         # Return the generated summary
