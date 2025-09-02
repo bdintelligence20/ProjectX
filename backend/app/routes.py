@@ -597,41 +597,65 @@ def get_category_summaries(category):
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def apollo_test():
     """Test route to verify Apollo integration is working"""
+    from flask import make_response
+    import datetime
+    
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
-        return jsonify({"message": "Preflight check passed"}), 200
+        response = make_response(jsonify({"message": "Preflight check passed"}))
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
     
     try:
+        # Get current timestamp
+        current_time = datetime.datetime.now().isoformat()
+        
         # Basic connectivity test
         response_data = {
             "status": "success",
             "message": "Apollo integration test successful",
             "method": request.method,
-            "timestamp": "2025-01-09T16:38:00Z"
+            "timestamp": current_time,
+            "server_running": True
         }
         
         # Check API key if available
         try:
             apollo_api_key = os.getenv('APOLLO_API_KEY')
-            response_data["api_key_configured"] = bool(apollo_api_key)
+            response_data["api_key_configured"] = bool(apollo_api_key and len(apollo_api_key) > 0)
             if apollo_api_key:
                 response_data["api_key_length"] = len(apollo_api_key)
-            logging.info(f"Apollo test route called. API key configured: {bool(apollo_api_key)}")
+            logging.info(f"Apollo test route called successfully. API key configured: {bool(apollo_api_key)}")
         except Exception as key_error:
             logging.warning(f"Could not check API key: {str(key_error)}")
-            response_data["api_key_configured"] = "unknown"
+            response_data["api_key_configured"] = False
+            response_data["api_key_error"] = str(key_error)
         
-        return jsonify(response_data), 200
+        # Create response with explicit JSON content type
+        response = make_response(jsonify(response_data))
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response, 200
         
     except Exception as e:
         logging.error(f"Error in Apollo test route: {str(e)}")
+        current_time = datetime.datetime.now().isoformat()
+        
         # Ensure we always return valid JSON
         error_response = {
             "status": "error", 
             "message": f"Test failed: {str(e)}",
-            "timestamp": "2025-01-09T16:38:00Z"
+            "timestamp": current_time,
+            "server_running": True,
+            "error_details": str(e)
         }
-        return jsonify(error_response), 500
+        
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response, 500
 
 
 # Apollo.io Integration Routes
@@ -639,6 +663,9 @@ def apollo_test():
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def apollo_people_search():
     """Search for people using Apollo.io API"""
+    from flask import make_response
+    import datetime
+    
     try:
         data = request.json
         logging.debug(f"Apollo people search request: {data}")
@@ -646,7 +673,14 @@ def apollo_people_search():
         # Get Apollo API key from environment
         apollo_api_key = os.getenv('APOLLO_API_KEY')
         if not apollo_api_key:
-            return jsonify({"error": "Apollo API key not configured"}), 500
+            error_response = {
+                "error": "Apollo API key not configured",
+                "timestamp": datetime.datetime.now().isoformat(),
+                "contacts": []
+            }
+            response = make_response(jsonify(error_response))
+            response.headers['Content-Type'] = 'application/json'
+            return response, 500
         
         # Build Apollo API request
         apollo_payload = {}
@@ -684,25 +718,76 @@ def apollo_people_search():
         logging.debug(f"Making Apollo API request to: {apollo_url}")
         logging.debug(f"Apollo payload: {apollo_payload}")
         
-        response = requests.post(apollo_url, json=apollo_payload, headers=headers)
+        apollo_response = requests.post(apollo_url, json=apollo_payload, headers=headers, timeout=30)
         
-        if response.status_code == 200:
-            apollo_data = response.json()
+        if apollo_response.status_code == 200:
+            apollo_data = apollo_response.json()
             logging.debug(f"Apollo API response received with {len(apollo_data.get('contacts', []))} contacts")
-            return jsonify(apollo_data), 200
-        else:
-            logging.error(f"Apollo API error: {response.status_code} - {response.text}")
-            return jsonify({"error": f"Apollo API error: {response.status_code}"}), response.status_code
             
+            # Ensure we always return the expected structure
+            result_data = {
+                "contacts": apollo_data.get('contacts', []),
+                "total_contacts": apollo_data.get('total_contacts', 0),
+                "pagination": apollo_data.get('pagination', {}),
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            response = make_response(jsonify(result_data))
+            response.headers['Content-Type'] = 'application/json'
+            return response, 200
+        else:
+            logging.error(f"Apollo API error: {apollo_response.status_code} - {apollo_response.text}")
+            error_response = {
+                "error": f"Apollo API error: {apollo_response.status_code}",
+                "details": apollo_response.text[:500] if apollo_response.text else "No details",
+                "contacts": [],
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            response = make_response(jsonify(error_response))
+            response.headers['Content-Type'] = 'application/json'
+            return response, apollo_response.status_code
+            
+    except requests.exceptions.Timeout:
+        logging.error("Apollo API request timed out")
+        error_response = {
+            "error": "Request timed out - Apollo API did not respond",
+            "contacts": [],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        return response, 504
+        
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Apollo API request error: {str(e)}")
+        error_response = {
+            "error": f"Request failed: {str(e)}",
+            "contacts": [],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        return response, 502
+        
     except Exception as e:
         logging.error(f"Error in Apollo people search: {str(e)}")
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+        error_response = {
+            "error": f"Internal server error: {str(e)}",
+            "contacts": [],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        return response, 500
 
 
 @bp.route('/apollo/company-search', methods=['POST'])
 @cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def apollo_company_search():
     """Search for companies using Apollo.io API"""
+    from flask import make_response
+    import datetime
+    
     try:
         data = request.json
         logging.debug(f"Apollo company search request: {data}")
@@ -710,7 +795,14 @@ def apollo_company_search():
         # Get Apollo API key from environment
         apollo_api_key = os.getenv('APOLLO_API_KEY')
         if not apollo_api_key:
-            return jsonify({"error": "Apollo API key not configured"}), 500
+            error_response = {
+                "error": "Apollo API key not configured",
+                "timestamp": datetime.datetime.now().isoformat(),
+                "organizations": []
+            }
+            response = make_response(jsonify(error_response))
+            response.headers['Content-Type'] = 'application/json'
+            return response, 500
         
         # Build Apollo API request
         apollo_payload = {}
@@ -748,19 +840,67 @@ def apollo_company_search():
         logging.debug(f"Making Apollo API request to: {apollo_url}")
         logging.debug(f"Apollo payload: {apollo_payload}")
         
-        response = requests.post(apollo_url, json=apollo_payload, headers=headers)
+        apollo_response = requests.post(apollo_url, json=apollo_payload, headers=headers, timeout=30)
         
-        if response.status_code == 200:
-            apollo_data = response.json()
+        if apollo_response.status_code == 200:
+            apollo_data = apollo_response.json()
             logging.debug(f"Apollo API response received with {len(apollo_data.get('organizations', []))} organizations")
-            return jsonify(apollo_data), 200
-        else:
-            logging.error(f"Apollo API error: {response.status_code} - {response.text}")
-            return jsonify({"error": f"Apollo API error: {response.status_code}"}), response.status_code
             
+            # Ensure we always return the expected structure
+            result_data = {
+                "organizations": apollo_data.get('organizations', []),
+                "total_organizations": apollo_data.get('total_organizations', 0),
+                "pagination": apollo_data.get('pagination', {}),
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            response = make_response(jsonify(result_data))
+            response.headers['Content-Type'] = 'application/json'
+            return response, 200
+        else:
+            logging.error(f"Apollo API error: {apollo_response.status_code} - {apollo_response.text}")
+            error_response = {
+                "error": f"Apollo API error: {apollo_response.status_code}",
+                "details": apollo_response.text[:500] if apollo_response.text else "No details",
+                "organizations": [],
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            response = make_response(jsonify(error_response))
+            response.headers['Content-Type'] = 'application/json'
+            return response, apollo_response.status_code
+            
+    except requests.exceptions.Timeout:
+        logging.error("Apollo API request timed out")
+        error_response = {
+            "error": "Request timed out - Apollo API did not respond",
+            "organizations": [],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        return response, 504
+        
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Apollo API request error: {str(e)}")
+        error_response = {
+            "error": f"Request failed: {str(e)}",
+            "organizations": [],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        return response, 502
+        
     except Exception as e:
         logging.error(f"Error in Apollo company search: {str(e)}")
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+        error_response = {
+            "error": f"Internal server error: {str(e)}",
+            "organizations": [],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        response = make_response(jsonify(error_response))
+        response.headers['Content-Type'] = 'application/json'
+        return response, 500
 
 
 @bp.route('/prospects/save', methods=['POST'])

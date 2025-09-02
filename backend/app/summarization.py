@@ -22,7 +22,7 @@ def summarize_text(text, max_length=500):
     try:
         # Query the OpenAI model for summarization using chat completions
         response = client.chat.completions.create(
-            model="gpt-5-nano",  # Use GPT-5 nano for efficient summarization
+            model="gpt-5-nano",  # Use GPT-5-nano for efficient summarization
             messages=[
                 {"role": "system", "content": f"You are a helpful assistant that provides concise summaries. Summarize the following text in approximately {max_length} tokens."},
                 {"role": "user", "content": text}

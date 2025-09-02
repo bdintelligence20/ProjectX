@@ -152,27 +152,54 @@ function ProspectingTool() {
   const handleTestConnection = async () => {
     try {
       console.log('Testing Apollo connection...');
-      const response = await fetch('/apollo/test', {
+      
+      // Use the full production URL to ensure proper routing
+      const testUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000/apollo/test'
+        : '/apollo/test';
+      
+      const response = await fetch(testUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+          'Accept': 'application/json',
+        },
+        mode: 'cors'
       });
       
       console.log('Test response status:', response.status);
+      console.log('Test response headers:', response.headers);
+      console.log('Test response content-type:', response.headers.get('content-type'));
       
-      if (response.ok) {
+      // Check if the response is JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
         const data = await response.json();
         console.log('Test response data:', data);
-        alert(`Connection test successful! API key configured: ${data.api_key_configured}`);
+        
+        if (response.ok) {
+          alert(`✅ Connection test successful! 
+API Key: ${data.api_key_configured ? '✅ Configured' : '❌ Missing'}
+Server: ${data.server_running ? '✅ Running' : '❌ Down'}
+Timestamp: ${data.timestamp}`);
+        } else {
+          alert(`❌ Connection test failed: ${data.message || 'Unknown error'}`);
+        }
       } else {
+        // Handle non-JSON response
         const errorText = await response.text();
-        console.error('Test response error:', errorText);
-        alert(`Connection test failed: ${response.status} - ${errorText}`);
+        console.error('Non-JSON response:', errorText);
+        alert(`❌ Connection test failed: Server returned non-JSON response\nStatus: ${response.status}\nContent: ${errorText.substring(0, 200)}...`);
       }
     } catch (error) {
       console.error('Test connection error:', error);
-      alert(`Connection test failed: ${error.message}`);
+      alert(`❌ Connection test failed: ${error.message}
+      
+This could be due to:
+- Backend server not running
+- CORS configuration issue  
+- Network connectivity problem
+- Route not properly configured`);
     }
   };
 
