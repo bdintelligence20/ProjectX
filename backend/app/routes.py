@@ -596,30 +596,83 @@ def get_category_summaries(category):
 @bp.route('/apollo/test', methods=['GET', 'POST', 'OPTIONS'])
 @cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
 def apollo_test():
-    """Simplified test route to diagnose response issues"""
+    """Test Apollo API key and check account status"""
     
     if request.method == 'OPTIONS':
         return '', 200
     
-    # Use the same pattern as the working /query route
     try:
         import os
         apollo_api_key = os.environ.get('APOLLO_API_KEY', 'not-set')
         
-        return jsonify({
-            "status": "success",
-            "message": "Apollo integration test successful", 
-            "method": request.method,
-            "api_key_configured": bool(apollo_api_key and apollo_api_key != 'not-set'),
-            "api_key_present": apollo_api_key != 'not-set',
-            "server_running": True
-        }), 200
+        if apollo_api_key == 'not-set' or not apollo_api_key:
+            return jsonify({
+                "status": "error",
+                "message": "Apollo API key not configured",
+                "api_key_configured": False
+            }), 500
         
+        # Test the API key by getting account info
+        headers = {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'X-Api-Key': apollo_api_key
+        }
+        
+        # Try to get current user info to verify API key and check credits
+        test_url = 'https://api.apollo.io/v1/auth/health'
+        response = requests.get(test_url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            # Try a minimal search to check if we can get actual data
+            search_url = 'https://api.apollo.io/api/v1/mixed_people/search'
+            search_payload = {
+                'page': 1,
+                'per_page': 1,
+                'person_titles': ['CEO']
+            }
+            
+            search_response = requests.post(search_url, json=search_payload, headers=headers, timeout=10)
+            
+            if search_response.status_code == 200:
+                search_data = search_response.json()
+                has_results = len(search_data.get('contacts', [])) > 0
+                total_found = search_data.get('pagination', {}).get('total_entries', 0)
+                
+                return jsonify({
+                    "status": "success",
+                    "message": f"Apollo API is working. Found {total_found} total matches.",
+                    "api_key_configured": True,
+                    "api_key_valid": True,
+                    "can_retrieve_data": has_results,
+                    "test_search_returned_data": has_results,
+                    "total_matches_found": total_found,
+                    "credits_info": search_data.get('credits_used', 'Unknown'),
+                    "rate_limit_info": search_data.get('rate_limit', {}),
+                    "warning": None if has_results else "API key is valid but cannot retrieve actual contact data. This usually means insufficient credits or a plan limitation."
+                }), 200
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Search test failed: {search_response.status_code}",
+                    "api_key_configured": True,
+                    "api_key_valid": True,
+                    "search_error": search_response.text[:500] if search_response.text else "No error details"
+                }), 400
+        else:
+            return jsonify({
+                "status": "error", 
+                "message": f"API key validation failed: {response.status_code}",
+                "api_key_configured": True,
+                "api_key_valid": False,
+                "error_details": response.text[:500] if response.text else "No error details"
+            }), 400
+            
     except Exception as e:
         return jsonify({
             "status": "error",
             "message": str(e),
-            "server_running": True
+            "api_key_configured": bool(apollo_api_key and apollo_api_key != 'not-set')
         }), 500
 
 
@@ -643,11 +696,10 @@ def apollo_people_search():
                 "contacts": []
             }), 500
         
-        # Build Apollo API request payload
+        # Build Apollo API request payload - simplified to basic parameters
         apollo_payload = {
-            'page': data.get('page', 1),
-            'per_page': min(data.get('per_page', 10), 100),  # Limit to 100 as requested
-            'prospected_by_current_team': ['no'],  # Include contacts not already prospected
+            'page': 1,
+            'per_page': 10,  # Start with just 10 results to test
         }
         
         # Add search parameters if provided  
@@ -657,8 +709,8 @@ def apollo_people_search():
             if data.get(key) and data[key]:  # Only add if not empty
                 apollo_payload[key] = data[key]
         
-        # Make request to Apollo API - using mixed_people endpoint for actual contact data
-        apollo_url = 'https://api.apollo.io/v1/mixed_people/search'
+        # Make request to Apollo API - correct endpoint from docs
+        apollo_url = 'https://api.apollo.io/api/v1/mixed_people/search'
         headers = {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-cache',
@@ -746,11 +798,10 @@ def apollo_company_search():
                 "organizations": []
             }), 500
         
-        # Build Apollo API request payload
+        # Build Apollo API request payload - simplified to basic parameters
         apollo_payload = {
-            'page': data.get('page', 1),
-            'per_page': min(data.get('per_page', 10), 100),  # Limit to 100 as requested
-            'prospected_by_current_team': ['no'],  # Include companies not already prospected
+            'page': 1,
+            'per_page': 10,  # Start with just 10 results to test
         }
         
         # Add search parameters if provided  
@@ -767,8 +818,8 @@ def apollo_company_search():
             if revenue_range.get('max'):
                 apollo_payload['revenue_range[max]'] = revenue_range['max']
         
-        # Make request to Apollo API - using mixed_companies endpoint for actual organization data  
-        apollo_url = 'https://api.apollo.io/v1/mixed_companies/search'
+        # Make request to Apollo API - correct endpoint from docs
+        apollo_url = 'https://api.apollo.io/api/v1/mixed_companies/search'
         headers = {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-cache',
