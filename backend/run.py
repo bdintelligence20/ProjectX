@@ -28,12 +28,13 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_SECRET")
 app.supabase = create_client(supabase_url, supabase_key)
 
-# Configure CORS
+# Configure CORS - Allow both production and local development
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://projectx-frontend-3owg.onrender.com"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "origins": ["https://projectx-frontend-3owg.onrender.com", "http://localhost:3000", "http://127.0.0.1:3000"],
+        "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
     }
 })
 

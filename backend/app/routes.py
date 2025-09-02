@@ -593,28 +593,50 @@ def get_category_summaries(category):
 
 
 # Test route to verify connectivity
-@bp.route('/apollo/test', methods=['GET', 'POST'])
-@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+@bp.route('/apollo/test', methods=['GET', 'POST', 'OPTIONS'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def apollo_test():
     """Test route to verify Apollo integration is working"""
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "Preflight check passed"}), 200
+    
     try:
-        apollo_api_key = os.getenv('APOLLO_API_KEY')
-        logging.info(f"Apollo test route called. API key configured: {bool(apollo_api_key)}")
-        
-        return jsonify({
+        # Basic connectivity test
+        response_data = {
             "status": "success",
             "message": "Apollo integration test successful",
-            "api_key_configured": bool(apollo_api_key),
-            "timestamp": "now"
-        }), 200
+            "method": request.method,
+            "timestamp": "2025-01-09T16:38:00Z"
+        }
+        
+        # Check API key if available
+        try:
+            apollo_api_key = os.getenv('APOLLO_API_KEY')
+            response_data["api_key_configured"] = bool(apollo_api_key)
+            if apollo_api_key:
+                response_data["api_key_length"] = len(apollo_api_key)
+            logging.info(f"Apollo test route called. API key configured: {bool(apollo_api_key)}")
+        except Exception as key_error:
+            logging.warning(f"Could not check API key: {str(key_error)}")
+            response_data["api_key_configured"] = "unknown"
+        
+        return jsonify(response_data), 200
+        
     except Exception as e:
         logging.error(f"Error in Apollo test route: {str(e)}")
-        return jsonify({"error": f"Test failed: {str(e)}"}), 500
+        # Ensure we always return valid JSON
+        error_response = {
+            "status": "error", 
+            "message": f"Test failed: {str(e)}",
+            "timestamp": "2025-01-09T16:38:00Z"
+        }
+        return jsonify(error_response), 500
 
 
 # Apollo.io Integration Routes
 @bp.route('/apollo/people-search', methods=['POST'])
-@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def apollo_people_search():
     """Search for people using Apollo.io API"""
     try:
@@ -678,7 +700,7 @@ def apollo_people_search():
 
 
 @bp.route('/apollo/company-search', methods=['POST'])
-@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def apollo_company_search():
     """Search for companies using Apollo.io API"""
     try:
@@ -742,7 +764,7 @@ def apollo_company_search():
 
 
 @bp.route('/prospects/save', methods=['POST'])
-@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def save_prospect():
     """Save a prospect (person or company) to the database"""
     try:
@@ -801,7 +823,7 @@ def save_prospect():
 
 
 @bp.route('/prospects/list', methods=['GET'])
-@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com'])
+@cross_origin(origins=['https://projectx-frontend-3owg.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'])
 def list_saved_prospects():
     """Get list of saved prospects for a user"""
     try:

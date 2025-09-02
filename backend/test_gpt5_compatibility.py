@@ -23,8 +23,7 @@ def test_model(model_name, test_prompt="Hello, this is a test message."):
             messages=[
                 {"role": "user", "content": test_prompt}
             ],
-            max_completion_tokens=50,
-            temperature=0.7
+            max_completion_tokens=50
         )
         
         result = response.choices[0].message.content.strip()
