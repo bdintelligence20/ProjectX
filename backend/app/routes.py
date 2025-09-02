@@ -696,10 +696,11 @@ def apollo_people_search():
                 "contacts": []
             }), 500
         
-        # Build Apollo API request payload - limit to 100 results
+        # Build Apollo API request payload - limit to 50 results and reveal contact info
         apollo_payload = {
             'page': 1,
-            'per_page': 100,  # Limit to 100 results as requested
+            'per_page': 50,  # Limit to 50 results to conserve credits
+            'reveal_contact_info': True,  # This will use credits but reveal actual contact details
         }
         
         # Add search parameters if provided  
@@ -751,10 +752,14 @@ def apollo_people_search():
                     "rate_limit": rate_limit
                 }), 200
             
+            # Add credit usage info to response
+            credits_used = apollo_data.get('credits_used', 0)
+            
             return jsonify({
                 "contacts": contacts,
                 "total_contacts": apollo_data.get('total_contacts', 0),
-                "pagination": pagination
+                "pagination": pagination,
+                "credits_used": credits_used
             }), 200
         else:
             error_message = f"Apollo API error: {apollo_response.status_code}"
@@ -798,10 +803,11 @@ def apollo_company_search():
                 "organizations": []
             }), 500
         
-        # Build Apollo API request payload - limit to 100 results
+        # Build Apollo API request payload - limit to 50 results
         apollo_payload = {
             'page': 1,
-            'per_page': 100,  # Limit to 100 results as requested
+            'per_page': 50,  # Limit to 50 results to conserve credits
+            'reveal_contact_info': True,  # Reveal organization contact details
         }
         
         # Add search parameters if provided  
@@ -860,10 +866,14 @@ def apollo_company_search():
                     "rate_limit": rate_limit
                 }), 200
             
+            # Add credit usage info to response
+            credits_used = apollo_data.get('credits_used', 0)
+            
             return jsonify({
                 "organizations": organizations,
                 "total_organizations": apollo_data.get('total_organizations', 0),
-                "pagination": pagination
+                "pagination": pagination,
+                "credits_used": credits_used
             }), 200
         else:
             error_message = f"Apollo API error: {apollo_response.status_code}"
