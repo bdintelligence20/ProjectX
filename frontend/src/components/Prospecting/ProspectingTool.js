@@ -35,6 +35,11 @@ import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
 import AuthContext from '../../AuthContext';
 
+// Backend URL configuration
+const BACKEND_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:5000' 
+  : 'https://projectx-53gn.onrender.com';
+
 const StyledContainer = styled(Box)(() => ({
   height: 'calc(100vh - 120px)',
   display: 'flex',
@@ -153,10 +158,8 @@ function ProspectingTool() {
     try {
       console.log('Testing Apollo connection...');
       
-      // Use the full production URL to ensure proper routing
-      const testUrl = window.location.hostname === 'localhost' 
-        ? 'http://localhost:5000/apollo/test'
-        : '/apollo/test';
+      // Use the backend URL for API calls
+      const testUrl = `${BACKEND_URL}/apollo/test`;
       
       const response = await fetch(testUrl, {
         method: 'POST',
@@ -224,7 +227,7 @@ This could be due to:
       console.log('Request body:', requestBody);
       console.log('User context:', user);
       
-      const response = await fetch('/apollo/people-search', {
+      const response = await fetch(`${BACKEND_URL}/apollo/people-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -274,7 +277,7 @@ This could be due to:
       
       console.log('Request body:', requestBody);
       
-      const response = await fetch('/apollo/company-search', {
+      const response = await fetch(`${BACKEND_URL}/apollo/company-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -304,7 +307,7 @@ This could be due to:
 
   const saveProspect = async (prospect, type) => {
     try {
-      const response = await fetch('/prospects/save', {
+      const response = await fetch(`${BACKEND_URL}/prospects/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
