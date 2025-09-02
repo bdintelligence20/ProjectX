@@ -696,10 +696,10 @@ def apollo_people_search():
                 "contacts": []
             }), 500
         
-        # Build Apollo API request payload - simplified to basic parameters
+        # Build Apollo API request payload - limit to 100 results
         apollo_payload = {
             'page': 1,
-            'per_page': 10,  # Start with just 10 results to test
+            'per_page': 100,  # Limit to 100 results as requested
         }
         
         # Add search parameters if provided  
@@ -798,10 +798,10 @@ def apollo_company_search():
                 "organizations": []
             }), 500
         
-        # Build Apollo API request payload - simplified to basic parameters
+        # Build Apollo API request payload - limit to 100 results
         apollo_payload = {
             'page': 1,
-            'per_page': 10,  # Start with just 10 results to test
+            'per_page': 100,  # Limit to 100 results as requested
         }
         
         # Add search parameters if provided  
