@@ -66,14 +66,11 @@ def query_llm(dochub_texts, user_question, chat_history=None):
         # Add the current user question
         messages.append({"role": "user", "content": user_question})
 
-        # Query the OpenAI model
+        # Query the OpenAI model (GPT-5 with only supported parameters)
         response = client.chat.completions.create(
             model="gpt-5",
             messages=messages,
-            max_completion_tokens=5000,
-            top_p=1,
-            frequency_penalty=0.1,
-            presence_penalty=0.5,
+            max_completion_tokens=5000
         )
 
         # Format DocHub sources concisely
@@ -114,14 +111,11 @@ def check_quality_with_llm(text):
             {"role": "user", "content": f"Improve the following text while maintaining its structure:\n\n{text}"}
         ]
 
-        # Query the model
+        # Query the model (GPT-5-mini with only supported parameters)
         response = client.chat.completions.create(
             model="gpt-5-mini",
             messages=messages,
-            max_completion_tokens=3000,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
+            max_completion_tokens=3000
         )
 
         # Extract and return the improved text
