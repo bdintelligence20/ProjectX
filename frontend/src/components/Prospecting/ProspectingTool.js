@@ -224,7 +224,7 @@ This could be due to:
         organization_num_employees_ranges: peopleSearch.companySize ? [peopleSearch.companySize] : [],
         q_keywords: peopleSearch.keywords,
         page: 1,
-        per_page: 20
+        per_page: 100  // Limit to 100 results as requested
       };
       
       console.log('Request body:', requestBody);
@@ -283,7 +283,7 @@ This could be due to:
         q_organization_keyword_tags: companySearch.industries,
         currently_using_any_of_technology_uids: companySearch.technologies,
         page: 1,
-        per_page: 20
+        per_page: 100  // Limit to 100 results as requested
       };
       
       console.log('Request body:', requestBody);
