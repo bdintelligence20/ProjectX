@@ -66,9 +66,9 @@ def query_llm(dochub_texts, user_question, chat_history=None):
         # Add the current user question
         messages.append({"role": "user", "content": user_question})
 
-        # Query the OpenAI model (GPT-5 with only supported parameters)
+        # Query the OpenAI model (GPT-5-mini for faster responses)
         response = client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-5-mini",
             messages=messages,
             max_completion_tokens=5000
         )
