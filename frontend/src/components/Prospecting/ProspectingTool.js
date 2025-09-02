@@ -99,6 +99,8 @@ function ProspectingTool() {
   const [companyResults, setCompanyResults] = useState([]);
   const [savedProspects, setSavedProspects] = useState([]);
   const [searchWarning, setSearchWarning] = useState('');
+  const [creditsUsed, setCreditsUsed] = useState(0);
+  const [creditBalance, setCreditBalance] = useState({ used: 170, total: 3015 }); // You can fetch this from backend
   
   // People Search Form State
   const [peopleSearch, setPeopleSearch] = useState({
@@ -109,7 +111,9 @@ function ProspectingTool() {
     organizationDomains: [],
     emailStatus: [],
     companySize: '',
-    keywords: ''
+    keywords: '',
+    departments: [],
+    industries: []
   });
   
   // Company Search Form State
@@ -123,6 +127,82 @@ function ProspectingTool() {
     technologies: [],
     fundingStage: ''
   });
+
+  const jobTitles = [
+    { category: 'C-Level', titles: [
+      { value: 'CEO', label: 'Chief Executive Officer (CEO)' },
+      { value: 'CFO', label: 'Chief Financial Officer (CFO)' },
+      { value: 'CTO', label: 'Chief Technology Officer (CTO)' },
+      { value: 'COO', label: 'Chief Operating Officer (COO)' },
+      { value: 'CMO', label: 'Chief Marketing Officer (CMO)' },
+      { value: 'CHRO', label: 'Chief HR Officer (CHRO)' },
+      { value: 'CIO', label: 'Chief Information Officer (CIO)' }
+    ]},
+    { category: 'Director Level', titles: [
+      { value: 'Director of Sales', label: 'Director of Sales' },
+      { value: 'Director of Marketing', label: 'Director of Marketing' },
+      { value: 'Director of Engineering', label: 'Director of Engineering' },
+      { value: 'Director of Product', label: 'Director of Product' },
+      { value: 'Director of Operations', label: 'Director of Operations' },
+      { value: 'Director of Finance', label: 'Director of Finance' }
+    ]},
+    { category: 'Management', titles: [
+      { value: 'Sales Manager', label: 'Sales Manager' },
+      { value: 'Marketing Manager', label: 'Marketing Manager' },
+      { value: 'Product Manager', label: 'Product Manager' },
+      { value: 'Project Manager', label: 'Project Manager' },
+      { value: 'Account Manager', label: 'Account Manager' },
+      { value: 'Engineering Manager', label: 'Engineering Manager' }
+    ]},
+    { category: 'Individual Contributors', titles: [
+      { value: 'Software Engineer', label: 'Software Engineer' },
+      { value: 'Account Executive', label: 'Account Executive' },
+      { value: 'Business Analyst', label: 'Business Analyst' },
+      { value: 'Sales Representative', label: 'Sales Representative' },
+      { value: 'Marketing Specialist', label: 'Marketing Specialist' }
+    ]},
+    { category: 'Other', titles: [
+      { value: 'Founder', label: 'Founder' },
+      { value: 'Owner', label: 'Owner' },
+      { value: 'Partner', label: 'Partner' },
+      { value: 'Consultant', label: 'Consultant' }
+    ]}
+  ];
+
+  const departments = [
+    { value: 'sales', label: 'Sales' },
+    { value: 'marketing', label: 'Marketing' },
+    { value: 'engineering', label: 'Engineering' },
+    { value: 'product', label: 'Product' },
+    { value: 'hr', label: 'Human Resources' },
+    { value: 'finance', label: 'Finance' },
+    { value: 'operations', label: 'Operations' },
+    { value: 'it', label: 'Information Technology' },
+    { value: 'customer_success', label: 'Customer Success' }
+  ];
+
+  const industries = [
+    { value: 'technology', label: 'Technology' },
+    { value: 'healthcare', label: 'Healthcare' },
+    { value: 'finance', label: 'Finance & Banking' },
+    { value: 'retail', label: 'Retail & E-commerce' },
+    { value: 'manufacturing', label: 'Manufacturing' },
+    { value: 'education', label: 'Education' },
+    { value: 'real_estate', label: 'Real Estate' },
+    { value: 'consulting', label: 'Consulting' },
+    { value: 'media', label: 'Media & Entertainment' },
+    { value: 'transportation', label: 'Transportation & Logistics' }
+  ];
+
+  const fundingStages = [
+    { value: 'seed', label: 'Seed' },
+    { value: 'series_a', label: 'Series A' },
+    { value: 'series_b', label: 'Series B' },
+    { value: 'series_c', label: 'Series C' },
+    { value: 'series_d', label: 'Series D+' },
+    { value: 'ipo', label: 'IPO' },
+    { value: 'private', label: 'Private' }
+  ];
 
   const seniorities = [
     { value: 'owner', label: 'Owner' },
@@ -223,8 +303,10 @@ This could be due to:
         contact_email_status: peopleSearch.emailStatus,
         organization_num_employees_ranges: peopleSearch.companySize ? [peopleSearch.companySize] : [],
         q_keywords: peopleSearch.keywords,
+        departments: peopleSearch.departments,
+        q_organization_keyword_tags: peopleSearch.industries,
         page: 1,
-        per_page: 100  // Limit to 100 results as requested
+        per_page: 50  // Limit to 50 results to conserve credits
       };
       
       console.log('Request body:', requestBody);
@@ -259,6 +341,7 @@ This could be due to:
       }
       
       setPeopleResults(data.contacts || []);
+      setCreditsUsed(data.credits_used || 0);
     } catch (error) {
       console.error('Error searching people:', error);
       alert(`Search failed: ${error.message}`);
@@ -283,7 +366,7 @@ This could be due to:
         q_organization_keyword_tags: companySearch.industries,
         currently_using_any_of_technology_uids: companySearch.technologies,
         page: 1,
-        per_page: 100  // Limit to 100 results as requested
+        per_page: 50  // Limit to 50 results to conserve credits
       };
       
       console.log('Request body:', requestBody);
@@ -316,6 +399,7 @@ This could be due to:
       }
       
       setCompanyResults(data.organizations || []);
+      setCreditsUsed(data.credits_used || 0);
     } catch (error) {
       console.error('Error searching companies:', error);
       alert(`Search failed: ${error.message}`);
@@ -351,20 +435,35 @@ This could be due to:
   return (
     <StyledContainer>
       <Box sx={{ p: 3, backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
-        <Typography variant="h4" sx={{ color: '#1a2332', fontWeight: 600, mb: 1 }}>
-          Sales Prospecting
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#64748b' }}>
-          Find and research potential customers using Apollo.io
-        </Typography>
-        <Button 
-          onClick={handleTestConnection}
-          variant="outlined"
-          size="small"
-          sx={{ mt: 2 }}
-        >
-          Test Connection
-        </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+          <Box>
+            <Typography variant="h4" sx={{ color: '#1a2332', fontWeight: 600, mb: 1 }}>
+              Sales Prospecting
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#64748b' }}>
+              Find and research potential customers using Apollo.io
+            </Typography>
+            <Button 
+              onClick={handleTestConnection}
+              variant="outlined"
+              size="small"
+              sx={{ mt: 2 }}
+            >
+              Test Connection
+            </Button>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="body2" sx={{ color: '#64748b', mb: 1 }}>
+              Apollo Credits
+            </Typography>
+            <Typography variant="h6" sx={{ color: '#1a2332', fontWeight: 600 }}>
+              {(creditBalance.total - creditBalance.used).toLocaleString()} / {creditBalance.total.toLocaleString()}
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+              remaining this month
+            </Typography>
+          </Box>
+        </Box>
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: '#ffffff' }}>
@@ -384,16 +483,35 @@ This could be due to:
             </Typography>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Job Titles (comma separated)"
-                  placeholder="sales manager, marketing director"
-                  value={peopleSearch.personTitles.join(', ')}
-                  onChange={(e) => setPeopleSearch({
-                    ...peopleSearch,
-                    personTitles: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  })}
-                />
+                <FormControl fullWidth>
+                  <InputLabel>Job Titles</InputLabel>
+                  <Select
+                    multiple
+                    value={peopleSearch.personTitles}
+                    onChange={(e) => setPeopleSearch({
+                      ...peopleSearch,
+                      personTitles: e.target.value
+                    })}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {jobTitles.map((category) => [
+                      <MenuItem key={category.category} disabled sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
+                        {category.category}
+                      </MenuItem>,
+                      ...category.titles.map((title) => (
+                        <MenuItem key={title.value} value={title.value} sx={{ pl: 4 }}>
+                          {title.label}
+                        </MenuItem>
+                      ))
+                    ])}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
@@ -464,6 +582,58 @@ This could be due to:
                 </FormControl>
               </Grid>
               <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    multiple
+                    value={peopleSearch.departments}
+                    onChange={(e) => setPeopleSearch({
+                      ...peopleSearch,
+                      departments: e.target.value
+                    })}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={departments.find(d => d.value === value)?.label} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept.value} value={dept.value}>
+                        {dept.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Industry</InputLabel>
+                  <Select
+                    multiple
+                    value={peopleSearch.industries}
+                    onChange={(e) => setPeopleSearch({
+                      ...peopleSearch,
+                      industries: e.target.value
+                    })}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={industries.find(i => i.value === value)?.label} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {industries.map((industry) => (
+                      <MenuItem key={industry.value} value={industry.value}>
+                        {industry.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Keywords"
@@ -476,7 +646,10 @@ This could be due to:
                 />
               </Grid>
             </Grid>
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Alert severity="info" sx={{ maxWidth: '400px' }}>
+                This search will use up to <strong>50 credits</strong>
+              </Alert>
               <Button
                 variant="contained"
                 size="large"
@@ -543,6 +716,16 @@ This could be due to:
                       <Typography variant="body2" sx={{ color: '#64748b' }}>
                         {person.organization_name}
                       </Typography>
+                      {person.email && person.email !== 'email_not_unlocked@domain.com' && (
+                        <Typography variant="body2" sx={{ color: '#2563eb', mt: 0.5 }}>
+                          📧 {person.email}
+                        </Typography>
+                      )}
+                      {person.phone_numbers?.[0]?.sanitized_number && (
+                        <Typography variant="body2" sx={{ color: '#059669', mt: 0.5 }}>
+                          📱 {person.phone_numbers[0].sanitized_number}
+                        </Typography>
+                      )}
                     </Box>
                     <IconButton
                       onClick={() => saveProspect(person, 'person')}
@@ -555,22 +738,24 @@ This could be due to:
                   <Divider sx={{ my: 2 }} />
                   
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {person.email && (
+                    {person.email && person.email !== 'email_not_unlocked@domain.com' && (
                       <Button
                         size="small"
                         startIcon={<EmailIcon />}
                         variant="outlined"
                         sx={{ borderRadius: '20px' }}
+                        href={`mailto:${person.email}`}
                       >
                         Email
                       </Button>
                     )}
-                    {person.phone_numbers?.[0] && (
+                    {person.phone_numbers?.[0]?.sanitized_number && (
                       <Button
                         size="small"
                         startIcon={<PhoneIcon />}
                         variant="outlined"
                         sx={{ borderRadius: '20px' }}
+                        href={`tel:${person.phone_numbers[0].sanitized_number}`}
                       >
                         Call
                       </Button>
@@ -655,7 +840,10 @@ This could be due to:
                 />
               </Grid>
             </Grid>
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Alert severity="info" sx={{ maxWidth: '400px' }}>
+                This search will use up to <strong>50 credits</strong>
+              </Alert>
               <Button
                 variant="contained"
                 size="large"
