@@ -646,36 +646,76 @@ def apollo_people_search():
         # Build Apollo API request payload
         apollo_payload = {
             'page': data.get('page', 1),
-            'per_page': data.get('per_page', 20)
+            'per_page': min(data.get('per_page', 10), 100),  # Limit to 100 as requested
+            'prospected_by_current_team': ['no'],  # Include contacts not already prospected
         }
         
         # Add search parameters if provided  
         for key in ['person_titles', 'person_seniorities', 'person_locations', 
                    'organization_locations', 'q_organization_domains_list', 
                    'contact_email_status', 'organization_num_employees_ranges', 'q_keywords']:
-            if data.get(key):
+            if data.get(key) and data[key]:  # Only add if not empty
                 apollo_payload[key] = data[key]
         
-        # Make request to Apollo API
-        apollo_url = 'https://api.apollo.io/api/v1/mixed_people/search'
+        # Make request to Apollo API - using mixed_people endpoint for actual contact data
+        apollo_url = 'https://api.apollo.io/v1/mixed_people/search'
         headers = {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-cache',
-            'X-Api-Key': str(apollo_api_key)
+            'X-Api-Key': apollo_api_key,
+            'Accept': 'application/json'
         }
+        
+        # Log the request for debugging
+        logging.info(f"Apollo API Request URL: {apollo_url}")
+        logging.info(f"Apollo API Request Payload: {apollo_payload}")
         
         apollo_response = requests.post(apollo_url, json=apollo_payload, headers=headers, timeout=30)
         
         if apollo_response.status_code == 200:
             apollo_data = apollo_response.json()
+            
+            # Log the full response for debugging
+            logging.info(f"Apollo API Response: {apollo_data}")
+            
+            # Check if we have pagination info but no contacts (credit/permission issue)
+            pagination = apollo_data.get('pagination', {})
+            contacts = apollo_data.get('contacts', [])
+            total_entries = pagination.get('total_entries', 0)
+            
+            if total_entries > 0 and len(contacts) == 0:
+                logging.warning(f"Apollo API returned {total_entries} total entries but no actual contacts. This usually indicates a credit/permission issue.")
+                
+                # Check for credit information in response
+                credits_used = apollo_data.get('credits_used', 0)
+                rate_limit = apollo_data.get('rate_limit', {})
+                
+                return jsonify({
+                    "contacts": [],
+                    "total_contacts": 0,
+                    "pagination": pagination,
+                    "warning": f"Found {total_entries} matches but unable to retrieve contact details. This may be due to API credits or permissions.",
+                    "credits_used": credits_used,
+                    "rate_limit": rate_limit
+                }), 200
+            
             return jsonify({
-                "contacts": apollo_data.get('contacts', []),
+                "contacts": contacts,
                 "total_contacts": apollo_data.get('total_contacts', 0),
-                "pagination": apollo_data.get('pagination', {})
+                "pagination": pagination
             }), 200
         else:
+            error_message = f"Apollo API error: {apollo_response.status_code}"
+            try:
+                error_data = apollo_response.json()
+                error_message = error_data.get('error', error_message)
+            except:
+                error_message = apollo_response.text
+                
+            logging.error(f"Apollo API Error: {error_message}")
+            
             return jsonify({
-                "error": f"Apollo API error: {apollo_response.status_code}",
+                "error": error_message,
                 "contacts": []
             }), 400
             
@@ -709,13 +749,14 @@ def apollo_company_search():
         # Build Apollo API request payload
         apollo_payload = {
             'page': data.get('page', 1),
-            'per_page': data.get('per_page', 20)
+            'per_page': min(data.get('per_page', 10), 100),  # Limit to 100 as requested
+            'prospected_by_current_team': ['no'],  # Include companies not already prospected
         }
         
         # Add search parameters if provided  
         for key in ['q_organization_name', 'organization_locations', 'organization_num_employees_ranges',
                    'q_organization_keyword_tags', 'currently_using_any_of_technology_uids']:
-            if data.get(key):
+            if data.get(key) and data[key]:  # Only add if not empty
                 apollo_payload[key] = data[key]
         
         # Handle revenue range specially
@@ -726,26 +767,65 @@ def apollo_company_search():
             if revenue_range.get('max'):
                 apollo_payload['revenue_range[max]'] = revenue_range['max']
         
-        # Make request to Apollo API
-        apollo_url = 'https://api.apollo.io/api/v1/mixed_companies/search'
+        # Make request to Apollo API - using mixed_companies endpoint for actual organization data  
+        apollo_url = 'https://api.apollo.io/v1/mixed_companies/search'
         headers = {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-cache',
-            'X-Api-Key': str(apollo_api_key)
+            'X-Api-Key': apollo_api_key,
+            'Accept': 'application/json'
         }
+        
+        # Log the request for debugging
+        logging.info(f"Apollo API Request URL: {apollo_url}")
+        logging.info(f"Apollo API Request Payload: {apollo_payload}")
         
         apollo_response = requests.post(apollo_url, json=apollo_payload, headers=headers, timeout=30)
         
         if apollo_response.status_code == 200:
             apollo_data = apollo_response.json()
+            
+            # Log the full response for debugging
+            logging.info(f"Apollo API Response: {apollo_data}")
+            
+            # Check if we have pagination info but no organizations (credit/permission issue)
+            pagination = apollo_data.get('pagination', {})
+            organizations = apollo_data.get('organizations', [])
+            total_entries = pagination.get('total_entries', 0)
+            
+            if total_entries > 0 and len(organizations) == 0:
+                logging.warning(f"Apollo API returned {total_entries} total entries but no actual organizations. This usually indicates a credit/permission issue.")
+                
+                # Check for credit information in response
+                credits_used = apollo_data.get('credits_used', 0)
+                rate_limit = apollo_data.get('rate_limit', {})
+                
+                return jsonify({
+                    "organizations": [],
+                    "total_organizations": 0,
+                    "pagination": pagination,
+                    "warning": f"Found {total_entries} matches but unable to retrieve organization details. This may be due to API credits or permissions.",
+                    "credits_used": credits_used,
+                    "rate_limit": rate_limit
+                }), 200
+            
             return jsonify({
-                "organizations": apollo_data.get('organizations', []),
+                "organizations": organizations,
                 "total_organizations": apollo_data.get('total_organizations', 0),
-                "pagination": apollo_data.get('pagination', {})
+                "pagination": pagination
             }), 200
         else:
+            error_message = f"Apollo API error: {apollo_response.status_code}"
+            try:
+                error_data = apollo_response.json()
+                error_message = error_data.get('error', error_message)
+            except:
+                error_message = apollo_response.text
+                
+            logging.error(f"Apollo API Error: {error_message}")
+            
             return jsonify({
-                "error": f"Apollo API error: {apollo_response.status_code}",
+                "error": error_message,
                 "organizations": []
             }), 400
             

@@ -22,7 +22,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Alert,
+  AlertTitle
 } from '@mui/material';
 import { styled } from '@mui/system';
 import SearchIcon from '@mui/icons-material/Search';
@@ -96,6 +98,7 @@ function ProspectingTool() {
   const [peopleResults, setPeopleResults] = useState([]);
   const [companyResults, setCompanyResults] = useState([]);
   const [savedProspects, setSavedProspects] = useState([]);
+  const [searchWarning, setSearchWarning] = useState('');
   
   // People Search Form State
   const [peopleSearch, setPeopleSearch] = useState({
@@ -247,6 +250,14 @@ This could be due to:
       
       const data = await response.json();
       console.log('Response data:', data);
+      
+      // Check for warning message about credits/permissions
+      if (data.warning) {
+        setSearchWarning(data.warning);
+      } else {
+        setSearchWarning('');
+      }
+      
       setPeopleResults(data.contacts || []);
     } catch (error) {
       console.error('Error searching people:', error);
@@ -296,6 +307,14 @@ This could be due to:
       
       const data = await response.json();
       console.log('Response data:', data);
+      
+      // Check for warning message about credits/permissions
+      if (data.warning) {
+        setSearchWarning(data.warning);
+      } else {
+        setSearchWarning('');
+      }
+      
       setCompanyResults(data.organizations || []);
     } catch (error) {
       console.error('Error searching companies:', error);
@@ -476,8 +495,35 @@ This could be due to:
             </Box>
           </SearchContainer>
 
+          {searchWarning && (
+            <Alert severity="warning" sx={{ mb: 2, mx: 3 }}>
+              <AlertTitle>Search Results Limited</AlertTitle>
+              {searchWarning}
+              <br />
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                This usually occurs when:
+                <ul style={{ marginTop: 8, marginBottom: 0 }}>
+                  <li>Your Apollo API key has insufficient credits</li>
+                  <li>The API key lacks proper permissions</li>
+                  <li>You've reached your rate limit</li>
+                </ul>
+                Please check your Apollo.io account and API key configuration.
+              </Typography>
+            </Alert>
+          )}
+
           <ResultsContainer>
-            {peopleResults.map((person) => (
+            {peopleResults.length === 0 && !loading && !searchWarning ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" sx={{ color: '#64748b', mb: 2 }}>
+                  No results found
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                  Try adjusting your search criteria or add more search terms
+                </Typography>
+              </Box>
+            ) : (
+              peopleResults.map((person) => (
               <ProspectCard key={person.id}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
@@ -543,7 +589,7 @@ This could be due to:
                   </Box>
                 </CardContent>
               </ProspectCard>
-            ))}
+            )))}
           </ResultsContainer>
         </TabPanel>
 
@@ -628,8 +674,35 @@ This could be due to:
             </Box>
           </SearchContainer>
 
+          {searchWarning && (
+            <Alert severity="warning" sx={{ mb: 2, mx: 3 }}>
+              <AlertTitle>Search Results Limited</AlertTitle>
+              {searchWarning}
+              <br />
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                This usually occurs when:
+                <ul style={{ marginTop: 8, marginBottom: 0 }}>
+                  <li>Your Apollo API key has insufficient credits</li>
+                  <li>The API key lacks proper permissions</li>
+                  <li>You've reached your rate limit</li>
+                </ul>
+                Please check your Apollo.io account and API key configuration.
+              </Typography>
+            </Alert>
+          )}
+
           <ResultsContainer>
-            {companyResults.map((company) => (
+            {companyResults.length === 0 && !loading && !searchWarning ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" sx={{ color: '#64748b', mb: 2 }}>
+                  No results found
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                  Try adjusting your search criteria or add more search terms
+                </Typography>
+              </Box>
+            ) : (
+              companyResults.map((company) => (
               <ProspectCard key={company.id}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
@@ -686,7 +759,7 @@ This could be due to:
                   </Box>
                 </CardContent>
               </ProspectCard>
-            ))}
+            )))}
           </ResultsContainer>
         </TabPanel>
 
