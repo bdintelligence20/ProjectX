@@ -401,18 +401,22 @@ function ProspectingTool() {
           name: person.name,
           email: person.email,
           title: person.title,
-          company_name: person.organization_name,
+          company_name: person.organization_name || person.account?.name || 'Unknown Company',
           linkedin_url: person.linkedin_url,
-          company_website: person.organization?.website_url
+          company_website: person.account?.website_url || person.organization?.website_url || null
         })
       });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
+        console.log('Research API response:', data);
+        
+        if (data.success && data.report) {
+          console.log('Setting research report:', data.report);
           setCurrentResearch(data.report);
         } else {
-          alert(`Failed to generate research: ${data.error}`);
+          console.error('Research generation failed:', data);
+          alert(`Failed to generate research: ${data.error || 'Unknown error'}`);
           setResearchModal(false);
         }
       } else {
@@ -1015,11 +1019,163 @@ function ProspectingTool() {
             </Box>
           ) : currentResearch ? (
             <Box>
-              {/* Display research report */}
-              <Box sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px' }}>
-                {typeof currentResearch === 'string' 
-                  ? currentResearch 
-                  : currentResearch.research_report || 'No report content available'}
+              {/* Display research report with proper styling */}
+              <Box sx={{ 
+                lineHeight: 1.8,
+                color: '#1a2332',
+                '& h1, & h2, & h3': {
+                  color: '#1a2332',
+                  fontWeight: 600,
+                  marginTop: '1.5rem',
+                  marginBottom: '1rem'
+                },
+                '& p': {
+                  marginBottom: '1rem',
+                  color: '#475569'
+                },
+                '& ul': {
+                  paddingLeft: '1.5rem',
+                  marginBottom: '1rem'
+                },
+                '& li': {
+                  marginBottom: '0.5rem',
+                  color: '#475569'
+                },
+                '& strong': {
+                  color: '#1a2332',
+                  fontWeight: 600
+                }
+              }}>
+                {(() => {
+                  // Handle the nested report structure from the backend
+                  let reportContent = 'No report content available';
+                  
+                  if (typeof currentResearch === 'string') {
+                    reportContent = currentResearch;
+                  } else if (currentResearch && currentResearch.research_report) {
+                    reportContent = currentResearch.research_report;
+                  } else if (currentResearch && typeof currentResearch === 'object') {
+                    // Try to extract the report from possible nested structures
+                    console.log('Current research object:', currentResearch);
+                    reportContent = currentResearch.report?.research_report || 
+                                  currentResearch.research_report || 
+                                  JSON.stringify(currentResearch, null, 2);
+                  }
+                  
+                  // Parse and format the report for better display
+                  const sections = reportContent.split(/\d+\.\s+/).filter(Boolean);
+                  
+                  return sections.map((section, index) => {
+                    const lines = section.split('\n').filter(line => line.trim());
+                    const title = lines[0];
+                    const content = lines.slice(1).join('\n');
+                    
+                    // Format the section with proper HTML-like structure
+                    const formattedContent = content
+                      .replace(/^-\s+/gm, '• ')  // Replace dashes with bullets
+                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
+                      .split('\n')
+                      .map(line => {
+                        if (line.startsWith('• ')) {
+                          return line;
+                        }
+                        return line;
+                      })
+                      .join('\n');
+                    
+                    return (
+                      <Box key={index} sx={{ mb: 3 }}>
+                        {title && (
+                          <Typography 
+                            variant="h6" 
+                            sx={{ 
+                              color: '#1a2332', 
+                              fontWeight: 600,
+                              mb: 2,
+                              borderBottom: '2px solid #e2e8f0',
+                              paddingBottom: 1
+                            }}
+                          >
+                            {index > 0 ? `${index}. ` : ''}{title.replace(/^[A-Z\s]+$/, (match) => {
+                              // Title case for all-caps headers
+                              return match.split(' ')
+                                .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+                                .join(' ');
+                            })}
+                          </Typography>
+                        )}
+                        <Box sx={{ 
+                          whiteSpace: 'pre-wrap',
+                          '& ul': {
+                            listStyle: 'none',
+                            paddingLeft: 0
+                          }
+                        }}>
+                          {formattedContent.split('\n').map((line, lineIndex) => {
+                            if (line.startsWith('• ')) {
+                              return (
+                                <Box key={lineIndex} sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'flex-start',
+                                  mb: 1,
+                                  ml: 2
+                                }}>
+                                  <Box sx={{ 
+                                    color: '#10b981', 
+                                    marginRight: 1,
+                                    fontSize: '1.2rem',
+                                    lineHeight: '1.5rem'
+                                  }}>
+                                    •
+                                  </Box>
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ color: '#475569', flex: 1 }}
+                                    dangerouslySetInnerHTML={{ 
+                                      __html: line.substring(2).replace(/<strong>(.*?)<\/strong>/g, '<b>$1</b>') 
+                                    }}
+                                  />
+                                </Box>
+                              );
+                            }
+                            
+                            // Check if it's a subsection header
+                            if (line && !line.startsWith('• ') && line.endsWith(':')) {
+                              return (
+                                <Typography 
+                                  key={lineIndex}
+                                  variant="subtitle1" 
+                                  sx={{ 
+                                    color: '#1a2332', 
+                                    fontWeight: 600,
+                                    mt: 2,
+                                    mb: 1
+                                  }}
+                                >
+                                  {line}
+                                </Typography>
+                              );
+                            }
+                            
+                            if (line) {
+                              return (
+                                <Typography 
+                                  key={lineIndex}
+                                  variant="body2" 
+                                  sx={{ color: '#475569', mb: 1 }}
+                                  dangerouslySetInnerHTML={{ 
+                                    __html: line.replace(/<strong>(.*?)<\/strong>/g, '<b>$1</b>') 
+                                  }}
+                                />
+                              );
+                            }
+                            return null;
+                          })}
+                        </Box>
+                      </Box>
+                    );
+                  });
+                })()}
               </Box>
               
               {/* Research metadata */}
