@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -24,7 +24,8 @@ import {
   DialogContent,
   DialogActions,
   Alert,
-  AlertTitle
+  AlertTitle,
+  Tooltip
 } from '@mui/material';
 import { styled } from '@mui/system';
 import SearchIcon from '@mui/icons-material/Search';
@@ -35,6 +36,9 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
+import ResearchIcon from '@mui/icons-material/Science';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 import AuthContext from '../../AuthContext';
 
 // Backend URL configuration
@@ -97,11 +101,15 @@ function ProspectingTool() {
   const [loading, setLoading] = useState(false);
   const [peopleResults, setPeopleResults] = useState([]);
   const [savedProspects, setSavedProspects] = useState([]);
+  const [savedResearch, setSavedResearch] = useState([]);
   const [searchWarning, setSearchWarning] = useState('');
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [creditBalance, setCreditBalance] = useState({ used: 170, total: 3015 }); // You can fetch this from backend
   const [savedItems, setSavedItems] = useState(new Set()); // Track saved items
   const [saveMessage, setSaveMessage] = useState(''); // Show save status
+  const [researchModal, setResearchModal] = useState(false);
+  const [currentResearch, setCurrentResearch] = useState(null);
+  const [researchLoading, setResearchLoading] = useState(false);
   
   // People Search Form State
   const [peopleSearch, setPeopleSearch] = useState({
@@ -219,6 +227,8 @@ function ProspectingTool() {
     setTabValue(newValue);
     if (newValue === 1) {
       loadSavedProspects(); // Load saved prospects when switching to that tab
+    } else if (newValue === 2) {
+      loadSavedResearch(); // Load saved research when switching to that tab
     }
   };
 
@@ -353,6 +363,125 @@ function ProspectingTool() {
     }
   };
 
+  const loadSavedResearch = async () => {
+    try {
+      const userId = user?.id || user?.user?.id || user?.sub;
+      if (!userId) return;
+      
+      const response = await fetch(`${BACKEND_URL}/research/list?user_id=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${user?.access_token || ''}`,
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSavedResearch(data.research || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading saved research:', error);
+    }
+  };
+
+  const handleResearchProspect = async (person) => {
+    setResearchLoading(true);
+    setResearchModal(true);
+    setCurrentResearch(null);
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/apollo/research-prospect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          name: person.name,
+          email: person.email,
+          title: person.title,
+          company_name: person.organization_name,
+          linkedin_url: person.linkedin_url,
+          company_website: person.organization?.website_url
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setCurrentResearch(data.report);
+        } else {
+          alert(`Failed to generate research: ${data.error}`);
+          setResearchModal(false);
+        }
+      } else {
+        alert('Failed to generate research report');
+        setResearchModal(false);
+      }
+    } catch (error) {
+      console.error('Error researching prospect:', error);
+      alert('Error generating research report');
+      setResearchModal(false);
+    } finally {
+      setResearchLoading(false);
+    }
+  };
+
+  const handleSaveResearch = async () => {
+    if (!currentResearch) return;
+    
+    try {
+      const userId = user?.id || user?.user?.id || user?.sub;
+      const response = await fetch(`${BACKEND_URL}/research/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          report: currentResearch
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          alert('Research saved successfully!');
+          setResearchModal(false);
+          if (tabValue === 2) {
+            loadSavedResearch();
+          }
+        } else {
+          alert(`Failed to save research: ${data.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving research:', error);
+      alert('Error saving research report');
+    }
+  };
+
+  const handleDeleteResearch = async (researchId) => {
+    if (!window.confirm('Are you sure you want to delete this research?')) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/research/${researchId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user?.access_token || ''}`,
+        }
+      });
+      
+      if (response.ok) {
+        loadSavedResearch();
+      }
+    } catch (error) {
+      console.error('Error deleting research:', error);
+    }
+  };
+
   return (
     <StyledContainer>
       <Box sx={{ p: 3, backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
@@ -383,6 +512,7 @@ function ProspectingTool() {
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ px: 3 }}>
           <Tab icon={<PersonIcon />} label="People Search" />
           <Tab icon={<BookmarkIcon />} label="Saved Prospects" />
+          <Tab icon={<ResearchIcon />} label="Research Reports" />
         </Tabs>
       </Box>
 
@@ -641,6 +771,19 @@ function ProspectingTool() {
                   <Divider sx={{ my: 2 }} />
                   
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      size="small"
+                      startIcon={<ResearchIcon />}
+                      variant="contained"
+                      sx={{ 
+                        borderRadius: '20px',
+                        backgroundColor: '#10b981',
+                        '&:hover': { backgroundColor: '#059669' }
+                      }}
+                      onClick={() => handleResearchProspect(person)}
+                    >
+                      Research
+                    </Button>
                     {person.email && person.email !== 'email_not_unlocked@domain.com' && (
                       <Button
                         size="small"
@@ -762,7 +905,163 @@ function ProspectingTool() {
             </Typography>
           )}
         </TabPanel>
+
+        {/* Research Reports Tab */}
+        <TabPanel value={tabValue} index={2}>
+          <Typography variant="h6" sx={{ mb: 3, color: '#1a2332' }}>
+            Research Reports
+          </Typography>
+          
+          {savedResearch.length > 0 ? (
+            <Box>
+              {savedResearch.map((research) => (
+                <ProspectCard key={research.id}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ color: '#1a2332', mb: 0.5 }}>
+                          {research.prospect_name}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#64748b' }}>
+                          {research.prospect_title} at {research.company_name}
+                        </Typography>
+                        {research.prospect_email && (
+                          <Typography variant="body2" sx={{ color: '#2563eb', mt: 0.5 }}>
+                            📧 {research.prospect_email}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 1 }}>
+                          Researched: {new Date(research.created_at).toLocaleDateString()}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Tooltip title="View Research">
+                          <IconButton
+                            onClick={() => {
+                              setCurrentResearch(research.research_report);
+                              setResearchModal(true);
+                              setResearchLoading(false);
+                            }}
+                            sx={{ color: '#1a2332' }}
+                          >
+                            <ResearchIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Research">
+                          <IconButton
+                            onClick={() => handleDeleteResearch(research.id)}
+                            sx={{ color: '#ef4444' }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
+                    
+                    {research.research_summary && (
+                      <Box sx={{ mt: 2, p: 2, backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
+                        <Typography variant="body2" sx={{ color: '#475569' }}>
+                          {research.research_summary.substring(0, 200)}...
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </ProspectCard>
+              ))}
+            </Box>
+          ) : (
+            <Typography variant="body1" sx={{ color: '#64748b' }}>
+              Your research reports will appear here once you research prospects and save the reports.
+            </Typography>
+          )}
+        </TabPanel>
       </Box>
+
+      {/* Research Modal */}
+      <Dialog
+        open={researchModal}
+        onClose={() => setResearchModal(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: '1px solid #e2e8f0'
+        }}>
+          <Typography variant="h6">Prospect Research Report</Typography>
+          <IconButton onClick={() => setResearchModal(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 3 }}>
+          {researchLoading ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <CircularProgress size={40} />
+              <Typography variant="body1" sx={{ mt: 2, color: '#64748b' }}>
+                Generating research report...
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1, color: '#94a3b8' }}>
+                This may take a few moments as we analyze LinkedIn and company data
+              </Typography>
+            </Box>
+          ) : currentResearch ? (
+            <Box>
+              {/* Display research report */}
+              <Box sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px' }}>
+                {typeof currentResearch === 'string' 
+                  ? currentResearch 
+                  : currentResearch.research_report || 'No report content available'}
+              </Box>
+              
+              {/* Research metadata */}
+              {currentResearch.prospect_info && (
+                <Box sx={{ mt: 3, p: 2, backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
+                  <Typography variant="caption" sx={{ color: '#64748b' }}>
+                    Generated: {new Date(currentResearch.generated_at || Date.now()).toLocaleString()}
+                  </Typography>
+                  <Box sx={{ mt: 1, display: 'flex', gap: 2 }}>
+                    {currentResearch.linkedin_scraped && (
+                      <Chip label="LinkedIn Analyzed" size="small" color="primary" />
+                    )}
+                    {currentResearch.website_scraped && (
+                      <Chip label="Website Analyzed" size="small" color="primary" />
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Typography>No research data available</Typography>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0' }}>
+          {!researchLoading && currentResearch && (
+            <Button
+              onClick={handleSaveResearch}
+              variant="contained"
+              sx={{
+                backgroundColor: '#10b981',
+                '&:hover': { backgroundColor: '#059669' }
+              }}
+            >
+              Save Research
+            </Button>
+          )}
+          <Button onClick={() => setResearchModal(false)} variant="outlined">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </StyledContainer>
   );
 }

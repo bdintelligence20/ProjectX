@@ -2,6 +2,9 @@ from flask import Blueprint, request, jsonify
 from app.scraping import scrape_website, extract_text_from_file, chunk_text, tokenizer, get_embedding, process_source, store_in_supabase
 from app.pinecone_client import store_in_pinecone, query_pinecone
 from app.llm import query_llm, generate_source_summary
+import json
+from datetime import datetime
+from urllib.parse import urlparse
 from app.llm import check_quality_with_llm
 from app.file_handling import save_text_to_file
 from flask_cors import cross_origin
@@ -1003,3 +1006,279 @@ def list_saved_prospects():
     except Exception as e:
         logging.error(f"Error listing prospects: {str(e)}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+# Research Generation Endpoints
+@bp.route('/apollo/research-prospect', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def research_prospect():
+    """Generate research report for a prospect by scraping their LinkedIn and company website"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        data = request.json
+        logging.info(f"Research prospect request: {data}")
+        
+        prospect_name = data.get('name')
+        prospect_email = data.get('email')
+        prospect_title = data.get('title')
+        company_name = data.get('company_name')
+        linkedin_url = data.get('linkedin_url')
+        
+        # Extract domain from email if available
+        company_website = None
+        if prospect_email and '@' in prospect_email:
+            domain = prospect_email.split('@')[1]
+            # Common email domains to skip
+            skip_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com']
+            if domain not in skip_domains:
+                company_website = f"https://{domain}"
+        
+        # Override with provided website if available
+        if data.get('company_website'):
+            company_website = data.get('company_website')
+        
+        logging.info(f"Research target - LinkedIn: {linkedin_url}, Company: {company_website}")
+        
+        # Collect scraped data
+        linkedin_data = ""
+        company_data = ""
+        
+        # Scrape LinkedIn if URL provided
+        if linkedin_url:
+            try:
+                logging.info(f"Scraping LinkedIn: {linkedin_url}")
+                linkedin_chunks = scrape_website(linkedin_url, max_depth=1, max_chunks=5)
+                linkedin_data = "\n".join(linkedin_chunks) if linkedin_chunks else ""
+            except Exception as e:
+                logging.error(f"Error scraping LinkedIn: {str(e)}")
+                linkedin_data = "LinkedIn profile could not be accessed."
+        
+        # Scrape company website if available
+        if company_website:
+            try:
+                logging.info(f"Scraping company website: {company_website}")
+                company_chunks = scrape_website(company_website, max_depth=2, max_chunks=10)
+                company_data = "\n".join(company_chunks) if company_chunks else ""
+            except Exception as e:
+                logging.error(f"Error scraping company website: {str(e)}")
+                company_data = "Company website could not be accessed."
+        
+        # Generate research report using LLM
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        # Create comprehensive prompt for research report
+        research_prompt = f"""
+        Generate a comprehensive research report for a sales prospect based on the following information:
+        
+        PROSPECT INFORMATION:
+        Name: {prospect_name}
+        Title: {prospect_title}
+        Company: {company_name}
+        Email: {prospect_email}
+        LinkedIn: {linkedin_url or 'Not provided'}
+        
+        LINKEDIN PROFILE DATA:
+        {linkedin_data[:3000] if linkedin_data else 'No LinkedIn data available'}
+        
+        COMPANY WEBSITE DATA:
+        {company_data[:3000] if company_data else 'No company website data available'}
+        
+        Please create a detailed research report with the following sections:
+        
+        1. EXECUTIVE SUMMARY
+        - Brief overview of the prospect and their company
+        - Key insights and opportunities
+        
+        2. PROFESSIONAL PROFILE
+        - Current role and responsibilities
+        - Career progression and achievements
+        - Areas of expertise
+        - Professional interests and focus areas
+        
+        3. COMPANY OVERVIEW
+        - Business description and industry
+        - Products/services offered
+        - Market position and competitive landscape
+        - Recent developments or news
+        
+        4. ENGAGEMENT STRATEGY
+        - Personalized talking points based on their background
+        - Potential pain points they might be facing
+        - Value propositions that would resonate
+        - Recommended outreach approach
+        - Best time and channel for contact
+        
+        5. KEY INSIGHTS
+        - Notable observations from the research
+        - Connection opportunities
+        - Risk factors or considerations
+        
+        Format the report in a clear, professional manner with bullet points where appropriate.
+        """
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-5-mini",
+                messages=[
+                    {"role": "system", "content": "You are an expert sales researcher creating detailed prospect intelligence reports."},
+                    {"role": "user", "content": research_prompt}
+                ],
+                max_completion_tokens=3000
+            )
+            
+            research_report = response.choices[0].message.content.strip()
+            
+            # Create structured report object
+            report_data = {
+                "prospect_info": {
+                    "name": prospect_name,
+                    "title": prospect_title,
+                    "email": prospect_email,
+                    "company": company_name,
+                    "linkedin_url": linkedin_url
+                },
+                "company_website": company_website,
+                "research_report": research_report,
+                "linkedin_scraped": bool(linkedin_data),
+                "website_scraped": bool(company_data),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            
+            return jsonify({
+                "success": True,
+                "report": report_data,
+                "message": "Research report generated successfully"
+            }), 200
+            
+        except Exception as e:
+            logging.error(f"Error generating research report: {str(e)}")
+            return jsonify({
+                "success": False,
+                "error": f"Failed to generate research report: {str(e)}"
+            }), 500
+            
+    except Exception as e:
+        logging.error(f"Error in research_prospect: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+@bp.route('/research/save', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def save_research():
+    """Save a research report to the database"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        report = data.get('report')
+        
+        if not user_id or not report:
+            return jsonify({"error": "User ID and report data required"}), 400
+        
+        # Extract key fields for database
+        save_data = {
+            'user_id': user_id,
+            'prospect_id': report.get('prospect_info', {}).get('email', ''),
+            'prospect_name': report.get('prospect_info', {}).get('name'),
+            'prospect_email': report.get('prospect_info', {}).get('email'),
+            'prospect_title': report.get('prospect_info', {}).get('title'),
+            'company_name': report.get('prospect_info', {}).get('company'),
+            'linkedin_url': report.get('prospect_info', {}).get('linkedin_url'),
+            'company_website': report.get('company_website'),
+            'research_report': report,
+            'research_summary': report.get('research_report', '')[:500]  # First 500 chars as summary
+        }
+        
+        # Save to Supabase
+        response = supabase.table('prospect_research').insert(save_data).execute()
+        
+        if response.data and len(response.data) > 0:
+            return jsonify({
+                "success": True,
+                "id": response.data[0]['id'],
+                "message": "Research saved successfully"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Failed to save research"
+            }), 500
+            
+    except Exception as e:
+        logging.error(f"Error saving research: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+@bp.route('/research/list', methods=['GET', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def list_research():
+    """Get list of saved research reports for a user"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        user_id = request.args.get('user_id')
+        
+        if not user_id:
+            return jsonify({"error": "User ID required"}), 400
+        
+        # Get research reports from database
+        response = supabase.table('prospect_research')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .order('created_at', desc=True)\
+            .execute()
+        
+        return jsonify({
+            "success": True,
+            "research": response.data
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error listing research: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+@bp.route('/research/<research_id>', methods=['DELETE', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def delete_research(research_id):
+    """Delete a research report"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        # Delete from database
+        response = supabase.table('prospect_research')\
+            .delete()\
+            .eq('id', research_id)\
+            .execute()
+        
+        return jsonify({
+            "success": True,
+            "message": "Research deleted successfully"
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error deleting research: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
