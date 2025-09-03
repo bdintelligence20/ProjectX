@@ -96,7 +96,6 @@ function ProspectingTool() {
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [peopleResults, setPeopleResults] = useState([]);
-  const [companyResults, setCompanyResults] = useState([]);
   const [savedProspects, setSavedProspects] = useState([]);
   const [searchWarning, setSearchWarning] = useState('');
   const [creditsUsed, setCreditsUsed] = useState(0);
@@ -108,26 +107,12 @@ function ProspectingTool() {
   const [peopleSearch, setPeopleSearch] = useState({
     personTitles: [],
     personSeniorities: [],
-    personLocations: [],
+    personLocations: '',
     organizationLocations: [],
-    organizationDomains: [],
     emailStatus: [],
     companySize: '',
-    keywords: '',
     departments: [],
     industries: []
-  });
-  
-  // Company Search Form State
-  const [companySearch, setCompanySearch] = useState({
-    companyName: '',
-    locations: [],
-    employeeRange: '',
-    revenueMin: '',
-    revenueMax: '',
-    industries: [],
-    technologies: [],
-    fundingStage: ''
   });
 
   const jobTitles = [
@@ -196,14 +181,9 @@ function ProspectingTool() {
     { value: 'transportation', label: 'Transportation & Logistics' }
   ];
 
-  const fundingStages = [
-    { value: 'seed', label: 'Seed' },
-    { value: 'series_a', label: 'Series A' },
-    { value: 'series_b', label: 'Series B' },
-    { value: 'series_c', label: 'Series C' },
-    { value: 'series_d', label: 'Series D+' },
-    { value: 'ipo', label: 'IPO' },
-    { value: 'private', label: 'Private' }
+  const locationOptions = [
+    { value: 'South Africa', label: 'South Africa' },
+    { value: 'Kenya', label: 'Kenya' }
   ];
 
   const seniorities = [
@@ -237,60 +217,8 @@ function ProspectingTool() {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
-    if (newValue === 2) {
+    if (newValue === 1) {
       loadSavedProspects(); // Load saved prospects when switching to that tab
-    }
-  };
-
-  const handleTestConnection = async () => {
-    try {
-      console.log('Testing Apollo connection...');
-      
-      // Use the backend URL for API calls
-      const testUrl = `${BACKEND_URL}/apollo/test`;
-      
-      const response = await fetch(testUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors'
-      });
-      
-      console.log('Test response status:', response.status);
-      console.log('Test response headers:', response.headers);
-      console.log('Test response content-type:', response.headers.get('content-type'));
-      
-      // Check if the response is JSON
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        console.log('Test response data:', data);
-        
-        if (response.ok) {
-          alert(`✅ Connection test successful! 
-API Key: ${data.api_key_configured ? '✅ Configured' : '❌ Missing'}
-Server: ${data.server_running ? '✅ Running' : '❌ Down'}
-Timestamp: ${data.timestamp}`);
-        } else {
-          alert(`❌ Connection test failed: ${data.message || 'Unknown error'}`);
-        }
-      } else {
-        // Handle non-JSON response
-        const errorText = await response.text();
-        console.error('Non-JSON response:', errorText);
-        alert(`❌ Connection test failed: Server returned non-JSON response\nStatus: ${response.status}\nContent: ${errorText.substring(0, 200)}...`);
-      }
-    } catch (error) {
-      console.error('Test connection error:', error);
-      alert(`❌ Connection test failed: ${error.message}
-      
-This could be due to:
-- Backend server not running
-- CORS configuration issue  
-- Network connectivity problem
-- Route not properly configured`);
     }
   };
 
@@ -302,12 +230,10 @@ This could be due to:
       const requestBody = {
         person_titles: peopleSearch.personTitles,
         person_seniorities: peopleSearch.personSeniorities,
-        person_locations: peopleSearch.personLocations,
+        person_locations: peopleSearch.personLocations ? [peopleSearch.personLocations] : [],
         organization_locations: peopleSearch.organizationLocations,
-        q_organization_domains_list: peopleSearch.organizationDomains,
         contact_email_status: peopleSearch.emailStatus,
         organization_num_employees_ranges: peopleSearch.companySize ? [peopleSearch.companySize] : [],
-        q_keywords: peopleSearch.keywords,
         departments: peopleSearch.departments,
         q_organization_keyword_tags: peopleSearch.industries,
         page: 1,
@@ -355,64 +281,6 @@ This could be due to:
     }
   };
 
-  const handleCompanySearch = async () => {
-    setLoading(true);
-    console.log('Starting company search...', companySearch);
-    
-    try {
-      const requestBody = {
-        q_organization_name: companySearch.companyName,
-        organization_locations: companySearch.locations,
-        organization_num_employees_ranges: companySearch.employeeRange ? [companySearch.employeeRange] : [],
-        revenue_range: {
-          min: companySearch.revenueMin ? parseInt(companySearch.revenueMin) : undefined,
-          max: companySearch.revenueMax ? parseInt(companySearch.revenueMax) : undefined
-        },
-        q_organization_keyword_tags: companySearch.industries,
-        currently_using_any_of_technology_uids: companySearch.technologies,
-        page: 1,
-        per_page: 50  // Limit to 50 results to conserve credits
-      };
-      
-      console.log('Request body:', requestBody);
-      
-      const response = await fetch(`${BACKEND_URL}/apollo/company-search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.access_token || 'no-token'}`,
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response error:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Response data:', data);
-      
-      // Check for warning message about credits/permissions
-      if (data.warning) {
-        setSearchWarning(data.warning);
-      } else {
-        setSearchWarning('');
-      }
-      
-      setCompanyResults(data.organizations || []);
-      setCreditsUsed(data.credits_used || 0);
-    } catch (error) {
-      console.error('Error searching companies:', error);
-      alert(`Search failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const saveProspect = async (prospect, type) => {
     try {
       // Get user ID from the user object (might be user.id or user.user.id depending on structure)
@@ -451,7 +319,7 @@ This could be due to:
         setTimeout(() => setSaveMessage(''), 3000);
         
         // If on saved prospects tab, refresh the list
-        if (tabValue === 2) {
+        if (tabValue === 1) {
           loadSavedProspects();
         }
       } else {
@@ -496,14 +364,6 @@ This could be due to:
             <Typography variant="body1" sx={{ color: '#64748b' }}>
               Find and research potential customers using Apollo.io
             </Typography>
-            <Button 
-              onClick={handleTestConnection}
-              variant="outlined"
-              size="small"
-              sx={{ mt: 2 }}
-            >
-              Test Connection
-            </Button>
           </Box>
           <Box sx={{ textAlign: 'right' }}>
             <Typography variant="body2" sx={{ color: '#64748b', mb: 1 }}>
@@ -522,7 +382,6 @@ This could be due to:
       <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: '#ffffff' }}>
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ px: 3 }}>
           <Tab icon={<PersonIcon />} label="People Search" />
-          <Tab icon={<BusinessIcon />} label="Company Search" />
           <Tab icon={<BookmarkIcon />} label="Saved Prospects" />
         </Tabs>
       </Box>
@@ -593,28 +452,25 @@ This could be due to:
                 </FormControl>
               </Grid>
               <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Person Locations"
-                  placeholder="California, New York, London"
-                  value={peopleSearch.personLocations.join(', ')}
-                  onChange={(e) => setPeopleSearch({
-                    ...peopleSearch,
-                    personLocations: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  })}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Company Domains"
-                  placeholder="apollo.io, salesforce.com"
-                  value={peopleSearch.organizationDomains.join(', ')}
-                  onChange={(e) => setPeopleSearch({
-                    ...peopleSearch,
-                    organizationDomains: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  })}
-                />
+                <FormControl fullWidth>
+                  <InputLabel>Person Location</InputLabel>
+                  <Select
+                    value={peopleSearch.personLocations}
+                    onChange={(e) => setPeopleSearch({
+                      ...peopleSearch,
+                      personLocations: e.target.value
+                    })}
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
+                    {locationOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
@@ -685,18 +541,6 @@ This could be due to:
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Keywords"
-                  placeholder="SaaS, enterprise software"
-                  value={peopleSearch.keywords}
-                  onChange={(e) => setPeopleSearch({
-                    ...peopleSearch,
-                    keywords: e.target.value
-                  })}
-                />
               </Grid>
             </Grid>
             <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -837,181 +681,8 @@ This could be due to:
           </ResultsContainer>
         </TabPanel>
 
-        {/* Company Search Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <SearchContainer>
-            <Typography variant="h6" sx={{ mb: 3, color: '#1a2332' }}>
-              Find Companies
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Company Name"
-                  placeholder="Apollo, Salesforce"
-                  value={companySearch.companyName}
-                  onChange={(e) => setCompanySearch({
-                    ...companySearch,
-                    companyName: e.target.value
-                  })}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Locations"
-                  placeholder="San Francisco, New York"
-                  value={companySearch.locations.join(', ')}
-                  onChange={(e) => setCompanySearch({
-                    ...companySearch,
-                    locations: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  })}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Company Size</InputLabel>
-                  <Select
-                    value={companySearch.employeeRange}
-                    onChange={(e) => setCompanySearch({
-                      ...companySearch,
-                      employeeRange: e.target.value
-                    })}
-                  >
-                    {employeeRanges.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Industry Keywords"
-                  placeholder="SaaS, fintech, healthcare"
-                  value={companySearch.industries.join(', ')}
-                  onChange={(e) => setCompanySearch({
-                    ...companySearch,
-                    industries: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  })}
-                />
-              </Grid>
-            </Grid>
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Alert severity="info" sx={{ maxWidth: '400px' }}>
-                This search will use up to <strong>50 credits</strong>
-              </Alert>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleCompanySearch}
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : <SearchIcon />}
-                sx={{
-                  backgroundColor: '#1a2332',
-                  '&:hover': { backgroundColor: '#2d3748' },
-                  borderRadius: '12px',
-                  px: 4
-                }}
-              >
-                {loading ? 'Searching...' : 'Search Companies'}
-              </Button>
-            </Box>
-          </SearchContainer>
-
-          {searchWarning && (
-            <Alert severity="warning" sx={{ mb: 2, mx: 3 }}>
-              <AlertTitle>Search Results Limited</AlertTitle>
-              {searchWarning}
-              <br />
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                This usually occurs when:
-                <ul style={{ marginTop: 8, marginBottom: 0 }}>
-                  <li>Your Apollo API key has insufficient credits</li>
-                  <li>The API key lacks proper permissions</li>
-                  <li>You've reached your rate limit</li>
-                </ul>
-                Please check your Apollo.io account and API key configuration.
-              </Typography>
-            </Alert>
-          )}
-
-          <ResultsContainer>
-            {companyResults.length === 0 && !loading && !searchWarning ? (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <Typography variant="h6" sx={{ color: '#64748b', mb: 2 }}>
-                  No results found
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#94a3b8' }}>
-                  Try adjusting your search criteria or add more search terms
-                </Typography>
-              </Box>
-            ) : (
-              companyResults.map((company) => (
-              <ProspectCard key={company.id}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
-                    <Avatar
-                      src={company.logo_url}
-                      sx={{ width: 60, height: 60, mr: 2 }}
-                      variant="rounded"
-                    >
-                      <BusinessIcon />
-                    </Avatar>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6" sx={{ color: '#1a2332', mb: 0.5 }}>
-                        {company.name}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748b', mb: 1 }}>
-                        {company.website_url}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748b' }}>
-                        Founded: {company.founded_year}
-                      </Typography>
-                    </Box>
-                    <IconButton
-                      onClick={() => saveProspect(company, 'company')}
-                      sx={{ color: savedItems.has(company.id) ? '#10b981' : '#1a2332' }}
-                    >
-                      {savedItems.has(company.id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-                    </IconButton>
-                  </Box>
-                  
-                  <Divider sx={{ my: 2 }} />
-                  
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {company.website_url && (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderRadius: '20px' }}
-                        onClick={() => window.open(company.website_url, '_blank')}
-                      >
-                        Visit Website
-                      </Button>
-                    )}
-                    {company.linkedin_url && (
-                      <Button
-                        size="small"
-                        startIcon={<LinkedInIcon />}
-                        variant="outlined"
-                        sx={{ borderRadius: '20px' }}
-                        onClick={() => window.open(company.linkedin_url, '_blank')}
-                      >
-                        LinkedIn
-                      </Button>
-                    )}
-                  </Box>
-                </CardContent>
-              </ProspectCard>
-            )))}
-          </ResultsContainer>
-        </TabPanel>
-
         {/* Saved Prospects Tab */}
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={1}>
           <Typography variant="h6" sx={{ mb: 3, color: '#1a2332' }}>
             Saved Prospects
           </Typography>

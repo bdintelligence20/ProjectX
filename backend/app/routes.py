@@ -705,8 +705,8 @@ def apollo_people_search():
         
         # Add search parameters if provided  
         for key in ['person_titles', 'person_seniorities', 'person_locations', 
-                   'organization_locations', 'q_organization_domains_list', 
-                   'contact_email_status', 'organization_num_employees_ranges', 'q_keywords']:
+                   'organization_locations', 'contact_email_status', 
+                   'organization_num_employees_ranges', 'q_organization_keyword_tags', 'departments']:
             if data.get(key) and data[key]:  # Only add if not empty
                 apollo_payload[key] = data[key]
         
