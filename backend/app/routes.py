@@ -1027,17 +1027,22 @@ def research_prospect():
         company_name = data.get('company_name')
         linkedin_url = data.get('linkedin_url')
         
-        # Extract domain from email if available
+        # Extract domain from email if available - this is the primary source
         company_website = None
         if prospect_email and '@' in prospect_email:
-            domain = prospect_email.split('@')[1]
-            # Common email domains to skip
-            skip_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com']
+            domain = prospect_email.split('@')[1].lower()
+            # Common personal email domains to skip
+            skip_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 
+                          'aol.com', 'mail.com', 'protonmail.com', 'yandex.com']
             if domain not in skip_domains:
+                # Use the email domain as the company website
                 company_website = f"https://{domain}"
+                logging.info(f"Using email domain for company website: {company_website}")
+                # Also try www version if main domain fails
+                company_website_alt = f"https://www.{domain}"
         
-        # Override with provided website if available
-        if data.get('company_website'):
+        # Only override with provided website if it's actually provided and valid
+        if data.get('company_website') and data.get('company_website') != 'None':
             company_website = data.get('company_website')
         
         logging.info(f"Research target - LinkedIn: {linkedin_url}, Company: {company_website}")
@@ -1046,25 +1051,38 @@ def research_prospect():
         linkedin_data = ""
         company_data = ""
         
-        # Scrape LinkedIn if URL provided
-        if linkedin_url:
+        # Scrape LinkedIn if URL provided (Note: LinkedIn has anti-scraping measures)
+        if linkedin_url and linkedin_url != 'None':
             try:
-                logging.info(f"Scraping LinkedIn: {linkedin_url}")
+                logging.info(f"Attempting to scrape LinkedIn: {linkedin_url}")
+                # Note: LinkedIn actively blocks scraping, so this might not work
                 linkedin_chunks = scrape_website(linkedin_url, max_depth=1, max_chunks=5)
                 linkedin_data = "\n".join(linkedin_chunks) if linkedin_chunks else ""
+                if not linkedin_data or len(linkedin_data) < 100:
+                    linkedin_data = "LinkedIn profile data not accessible due to platform restrictions. Using available information from Apollo data."
             except Exception as e:
                 logging.error(f"Error scraping LinkedIn: {str(e)}")
-                linkedin_data = "LinkedIn profile could not be accessed."
+                linkedin_data = "LinkedIn profile not accessible due to platform restrictions. Using available information from Apollo data."
         
         # Scrape company website if available
-        if company_website:
+        if company_website and company_website != 'None':
             try:
                 logging.info(f"Scraping company website: {company_website}")
                 company_chunks = scrape_website(company_website, max_depth=2, max_chunks=10)
                 company_data = "\n".join(company_chunks) if company_chunks else ""
+                
+                # If main domain fails, try with www
+                if (not company_data or len(company_data) < 100) and 'www.' not in company_website:
+                    company_website_alt = company_website.replace('https://', 'https://www.')
+                    logging.info(f"Retrying with www: {company_website_alt}")
+                    company_chunks = scrape_website(company_website_alt, max_depth=2, max_chunks=10)
+                    company_data = "\n".join(company_chunks) if company_chunks else company_data
+                    
+                if not company_data or len(company_data) < 100:
+                    company_data = f"Limited data available for {company_website}. Using domain-based inference."
             except Exception as e:
-                logging.error(f"Error scraping company website: {str(e)}")
-                company_data = "Company website could not be accessed."
+                logging.error(f"Error scraping company website {company_website}: {str(e)}")
+                company_data = f"Company website {company_website} could not be fully accessed. Using available information."
         
         # Generate research report using LLM
         from openai import OpenAI
@@ -1079,13 +1097,20 @@ def research_prospect():
         Title: {prospect_title}
         Company: {company_name}
         Email: {prospect_email}
-        LinkedIn: {linkedin_url or 'Not provided'}
+        Email Domain: {prospect_email.split('@')[1] if prospect_email and '@' in prospect_email else 'Unknown'}
+        LinkedIn: {linkedin_url if linkedin_url and linkedin_url != 'None' else 'Not provided'}
+        Company Website (from email): {company_website or 'Not identified'}
+        
+        IMPORTANT CONTEXT:
+        - If the email domain suggests a major company (e.g., ford.com = Ford Motor Company), use that as the primary company context
+        - The title "{prospect_title}" indicates their role and seniority level
+        - Focus on insights relevant to their specific role and industry
         
         LINKEDIN PROFILE DATA:
-        {linkedin_data[:3000] if linkedin_data else 'No LinkedIn data available'}
+        {linkedin_data[:2000] if linkedin_data else 'LinkedIn data not available - use role and company context for insights'}
         
-        COMPANY WEBSITE DATA:
-        {company_data[:3000] if company_data else 'No company website data available'}
+        COMPANY WEBSITE DATA (from {company_website if company_website else 'domain'}):
+        {company_data[:3000] if company_data else 'Company website data limited - use domain and industry knowledge'}
         
         Please create a detailed research report with the following sections:
         
