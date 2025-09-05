@@ -39,6 +39,9 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import ResearchIcon from '@mui/icons-material/Science';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import AuthContext from '../../AuthContext';
 
 // Backend URL configuration
@@ -110,6 +113,8 @@ function ProspectingTool() {
   const [researchModal, setResearchModal] = useState(false);
   const [currentResearch, setCurrentResearch] = useState(null);
   const [researchLoading, setResearchLoading] = useState(false);
+  const [hubspotStatus, setHubspotStatus] = useState({}); // Track HubSpot status for prospects
+  const [hubspotLoading, setHubspotLoading] = useState(false);
   
   // People Search Form State
   const [peopleSearch, setPeopleSearch] = useState({
@@ -334,7 +339,7 @@ function ProspectingTool() {
         departments: peopleSearch.departments,
         q_organization_keyword_tags: peopleSearch.industries,
         page: 1,
-        per_page: 50  // Limit to 50 results to conserve credits
+        per_page: 100  // Increased to 100 results as requested
       };
       
       console.log('Request body:', requestBody);
@@ -573,6 +578,106 @@ function ProspectingTool() {
     }
   };
 
+  // HubSpot Integration Functions
+  const checkHubspotStatus = async (prospects) => {
+    if (!prospects || prospects.length === 0) return;
+    
+    setHubspotLoading(true);
+    
+    try {
+      // Prepare prospects data for batch check
+      const prospectsData = prospects.map(person => ({
+        id: person.id,
+        type: 'person',
+        data: person
+      }));
+      
+      const response = await fetch(`${BACKEND_URL}/hubspot/batch-check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          prospects: prospectsData
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setHubspotStatus(data.results);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking HubSpot status:', error);
+    } finally {
+      setHubspotLoading(false);
+    }
+  };
+
+  const renderHubspotStatus = (personId) => {
+    const status = hubspotStatus[personId];
+    
+    if (!status) {
+      return null;
+    }
+    
+    if (status.exists) {
+      return (
+        <Tooltip title={`Found in HubSpot: ${status.first_name} ${status.last_name}`}>
+          <Chip
+            icon={<CheckCircleIcon />}
+            label="In HubSpot"
+            size="small"
+            sx={{
+              backgroundColor: '#dcfce7',
+              color: '#166534',
+              '& .MuiChip-icon': { color: '#166534' }
+            }}
+          />
+        </Tooltip>
+      );
+    } else if (status.error) {
+      return (
+        <Tooltip title={`HubSpot check failed: ${status.error}`}>
+          <Chip
+            icon={<HelpOutlineIcon />}
+            label="Check Failed"
+            size="small"
+            sx={{
+              backgroundColor: '#fef3c7',
+              color: '#92400e',
+              '& .MuiChip-icon': { color: '#92400e' }
+            }}
+          />
+        </Tooltip>
+      );
+    } else {
+      return (
+        <Tooltip title="Not found in HubSpot">
+          <Chip
+            icon={<CancelIcon />}
+            label="Not in HubSpot"
+            size="small"
+            sx={{
+              backgroundColor: '#fee2e2',
+              color: '#991b1b',
+              '& .MuiChip-icon': { color: '#991b1b' }
+            }}
+          />
+        </Tooltip>
+      );
+    }
+  };
+
+  // Check HubSpot status when search results change
+  useEffect(() => {
+    if (peopleResults.length > 0) {
+      checkHubspotStatus(peopleResults);
+    }
+  }, [peopleResults]);
+
   return (
     <StyledContainer>
       <Box sx={{ p: 3, backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
@@ -766,7 +871,7 @@ function ProspectingTool() {
             </Grid>
             <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Alert severity="info" sx={{ maxWidth: '400px' }}>
-                This search will use up to <strong>50 credits</strong>
+                This search will use up to <strong>100 credits</strong>
               </Alert>
               <Button
                 variant="contained"
@@ -850,13 +955,30 @@ function ProspectingTool() {
                           📱 {person.phone_numbers[0].sanitized_number}
                         </Typography>
                       )}
+                      {/* HubSpot Status Display */}
+                      <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {hubspotLoading && (
+                          <Chip
+                            icon={<CircularProgress size={14} />}
+                            label="Checking HubSpot..."
+                            size="small"
+                            sx={{
+                              backgroundColor: '#f3f4f6',
+                              color: '#6b7280'
+                            }}
+                          />
+                        )}
+                        {!hubspotLoading && renderHubspotStatus(person.id)}
+                      </Box>
                     </Box>
-                    <IconButton
-                      onClick={() => saveProspect(person, 'person')}
-                      sx={{ color: savedItems.has(person.id) ? '#10b981' : '#1a2332' }}
-                    >
-                      {savedItems.has(person.id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-                    </IconButton>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                      <IconButton
+                        onClick={() => saveProspect(person, 'person')}
+                        sx={{ color: savedItems.has(person.id) ? '#10b981' : '#1a2332' }}
+                      >
+                        {savedItems.has(person.id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                      </IconButton>
+                    </Box>
                   </Box>
                   
                   <Divider sx={{ my: 2 }} />
