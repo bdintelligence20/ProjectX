@@ -1310,31 +1310,95 @@ def delete_research(research_id):
 
 
 # HubSpot Integration Functions
-def check_hubspot_contact_by_email(email):
-    """Check if a contact exists in HubSpot by email"""
+def try_hubspot_auth_methods(url, payload=None, method='POST'):
+    """Try multiple HubSpot authentication methods until one works"""
+    hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
+    if not hubspot_api_key:
+        return None, {'error': 'HubSpot API key not configured'}
+    
+    # Method 1: Try as personal access token with Bearer auth
     try:
-        hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
-        if not hubspot_api_key:
-            return {'exists': False, 'error': 'HubSpot API key not configured'}
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {hubspot_api_key}'
+        }
         
-        # HubSpot API endpoint to search for contacts  
-        url = f"https://api.hubapi.com/crm/v3/objects/contacts/search"
-        
-        # Try different authentication methods - HubSpot can be picky about format
+        if method == 'POST':
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+        else:
+            response = requests.get(url, headers=headers, timeout=10)
+            
+        if response.status_code == 200:
+            logging.info("HubSpot auth successful with Bearer token")
+            return response, None
+        else:
+            logging.info(f"Bearer auth failed: {response.status_code}")
+    except Exception as e:
+        logging.info(f"Bearer auth exception: {e}")
+    
+    # Method 2: Try with hapikey parameter (legacy API key)
+    try:
         headers = {
             'Content-Type': 'application/json'
         }
         
-        # Personal access tokens should use Bearer auth with specific format
-        if len(hubspot_api_key) > 50:
-            # This is a personal access token - use Bearer with proper format
-            headers['Authorization'] = f'Bearer {hubspot_api_key}'
-        elif hubspot_api_key.startswith('pat-'):
-            # Private app access token
-            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        # Add hapikey as URL parameter
+        separator = '&' if '?' in url else '?'
+        url_with_key = f"{url}{separator}hapikey={hubspot_api_key}"
+        
+        if method == 'POST':
+            response = requests.post(url_with_key, json=payload, headers=headers, timeout=10)
         else:
-            # Legacy API keys use hapikey parameter
-            url = f"https://api.hubapi.com/crm/v3/objects/contacts/search?hapikey={hubspot_api_key}"
+            response = requests.get(url_with_key, headers=headers, timeout=10)
+            
+        if response.status_code == 200:
+            logging.info("HubSpot auth successful with hapikey parameter")
+            return response, None
+        else:
+            logging.info(f"Hapikey auth failed: {response.status_code}")
+    except Exception as e:
+        logging.info(f"Hapikey auth exception: {e}")
+    
+    # Method 3: Try different API version (v1 instead of v3)
+    try:
+        if 'v3' in url:
+            v1_url = url.replace('/crm/v3/objects/', '/contacts/v1/').replace('search', 'search/query')
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {hubspot_api_key}'
+            }
+            
+            # Convert v3 payload to v1 format if needed
+            if payload and 'filterGroups' in payload:
+                v1_payload = {
+                    'query': payload['filterGroups'][0]['filters'][0]['value'],
+                    'properties': payload.get('properties', []),
+                    'count': payload.get('limit', 1)
+                }
+            else:
+                v1_payload = payload
+                
+            if method == 'POST':
+                response = requests.post(v1_url, json=v1_payload, headers=headers, timeout=10)
+            else:
+                response = requests.get(v1_url, headers=headers, timeout=10)
+                
+            if response.status_code == 200:
+                logging.info("HubSpot auth successful with v1 API")
+                return response, None
+            else:
+                logging.info(f"v1 API auth failed: {response.status_code}")
+    except Exception as e:
+        logging.info(f"v1 API auth exception: {e}")
+    
+    return None, {'error': 'All HubSpot authentication methods failed'}
+
+
+def check_hubspot_contact_by_email(email):
+    """Check if a contact exists in HubSpot by email"""
+    try:
+        # HubSpot API endpoint to search for contacts  
+        url = "https://api.hubapi.com/crm/v3/objects/contacts/search"
         
         # Search for contact by email
         search_payload = {
@@ -1353,9 +1417,12 @@ def check_hubspot_contact_by_email(email):
             'limit': 1
         }
         
-        response = requests.post(url, json=search_payload, headers=headers, timeout=10)
+        response, error = try_hubspot_auth_methods(url, search_payload, 'POST')
         
-        if response.status_code == 200:
+        if error:
+            return {'exists': False, 'error': error.get('error')}
+        
+        if response and response.status_code == 200:
             data = response.json()
             results = data.get('results', [])
             
@@ -1376,8 +1443,9 @@ def check_hubspot_contact_by_email(email):
             else:
                 return {'exists': False}
         else:
-            logging.error(f"HubSpot API error: {response.status_code} - {response.text}")
-            return {'exists': False, 'error': f'HubSpot API error: {response.status_code}'}
+            error_text = response.text if response else 'No response'
+            logging.error(f"HubSpot API error: {response.status_code if response else 'No status'} - {error_text}")
+            return {'exists': False, 'error': f'HubSpot API error: {response.status_code if response else "No response"}'}
             
     except Exception as e:
         logging.error(f"Error checking HubSpot contact: {str(e)}")
@@ -1387,28 +1455,8 @@ def check_hubspot_contact_by_email(email):
 def check_hubspot_company_by_domain(domain):
     """Check if a company exists in HubSpot by domain"""
     try:
-        hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
-        if not hubspot_api_key:
-            return {'exists': False, 'error': 'HubSpot API key not configured'}
-        
         # HubSpot API endpoint to search for companies
-        url = f"https://api.hubapi.com/crm/v3/objects/companies/search"
-        
-        # Try different authentication methods - HubSpot can be picky about format
-        headers = {
-            'Content-Type': 'application/json'
-        }
-        
-        # Personal access tokens should use Bearer auth with specific format
-        if len(hubspot_api_key) > 50:
-            # This is a personal access token - use Bearer with proper format
-            headers['Authorization'] = f'Bearer {hubspot_api_key}'
-        elif hubspot_api_key.startswith('pat-'):
-            # Private app access token
-            headers['Authorization'] = f'Bearer {hubspot_api_key}'
-        else:
-            # Legacy API keys use hapikey parameter
-            url = f"https://api.hubapi.com/crm/v3/objects/companies/search?hapikey={hubspot_api_key}"
+        url = "https://api.hubapi.com/crm/v3/objects/companies/search"
         
         # Clean domain (remove protocol, www, etc.)
         clean_domain = domain.lower().replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
@@ -1430,9 +1478,12 @@ def check_hubspot_company_by_domain(domain):
             'limit': 1
         }
         
-        response = requests.post(url, json=search_payload, headers=headers, timeout=10)
+        response, error = try_hubspot_auth_methods(url, search_payload, 'POST')
         
-        if response.status_code == 200:
+        if error:
+            return {'exists': False, 'error': error.get('error')}
+        
+        if response and response.status_code == 200:
             data = response.json()
             results = data.get('results', [])
             
@@ -1452,8 +1503,9 @@ def check_hubspot_company_by_domain(domain):
             else:
                 return {'exists': False}
         else:
-            logging.error(f"HubSpot API error: {response.status_code} - {response.text}")
-            return {'exists': False, 'error': f'HubSpot API error: {response.status_code}'}
+            error_text = response.text if response else 'No response'
+            logging.error(f"HubSpot API error: {response.status_code if response else 'No status'} - {error_text}")
+            return {'exists': False, 'error': f'HubSpot API error: {response.status_code if response else "No response"}'}
             
     except Exception as e:
         logging.error(f"Error checking HubSpot company: {str(e)}")
@@ -1602,25 +1654,16 @@ def test_hubspot_connection():
         # Test the connection by getting account info
         url = "https://api.hubapi.com/account-info/v3/details"
         
-        # Try different authentication methods - HubSpot can be picky about format
-        headers = {
-            'Content-Type': 'application/json'
-        }
+        response, error = try_hubspot_auth_methods(url, None, 'GET')
         
-        # Personal access tokens should use Bearer auth with specific format
-        if len(hubspot_api_key) > 50:
-            # This is a personal access token - use Bearer with proper format
-            headers['Authorization'] = f'Bearer {hubspot_api_key}'
-        elif hubspot_api_key.startswith('pat-'):
-            # Private app access token
-            headers['Authorization'] = f'Bearer {hubspot_api_key}'
-        else:
-            # Legacy API keys use hapikey parameter
-            url = f"https://api.hubapi.com/account-info/v3/details?hapikey={hubspot_api_key}"
+        if error:
+            return jsonify({
+                'success': False,
+                'error': error.get('error'),
+                'attempted_methods': ['Bearer token', 'hapikey parameter', 'v1 API']
+            }), 400
         
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             account_data = response.json()
             return jsonify({
                 'success': True,
@@ -1628,14 +1671,15 @@ def test_hubspot_connection():
                 'account_name': account_data.get('portalName', 'Unknown'),
                 'account_id': account_data.get('portalId'),
                 'api_key_configured': True,
-                'auth_method': 'Bearer token' if hubspot_api_key.startswith('pat-') else 'API key parameter'
+                'auth_method': 'Multi-method authentication (successful)'
             }), 200
         else:
+            error_text = response.text if response else 'No response'
             return jsonify({
                 'success': False,
-                'error': f'HubSpot API error: {response.status_code}',
-                'details': response.text[:200],
-                'auth_method_tried': 'Bearer token' if hubspot_api_key.startswith('pat-') else 'API key parameter'
+                'error': f'HubSpot API error: {response.status_code if response else "No status"}',
+                'details': error_text[:200],
+                'attempted_methods': ['Bearer token', 'hapikey parameter', 'v1 API']
             }), 400
             
     except Exception as e:
