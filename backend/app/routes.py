@@ -1320,29 +1320,15 @@ def hubspot_request(url, payload=None, method='POST'):
     original_key = hubspot_api_key
     hubspot_api_key = hubspot_api_key.strip().strip('"').strip("'")
     
-    # Check if the key might be base64 encoded (common mistake)
-    if hubspot_api_key.startswith('CiRu'):
-        try:
-            import base64
-            decoded = base64.b64decode(hubspot_api_key).decode('utf-8')
-            if decoded.startswith('pat-'):
-                logging.info(f"Detected base64 encoded API key, decoded successfully")
-                hubspot_api_key = decoded
-            else:
-                logging.warning(f"Base64 decoded but doesn't start with 'pat-': {decoded[:10]}...")
-        except Exception as e:
-            logging.warning(f"Failed to decode as base64: {e}")
-    
     # Debug key format
     logging.info(f"HubSpot key first 10 chars: {hubspot_api_key[:10]}...")
     logging.info(f"HubSpot key last 4 chars: ...{hubspot_api_key[-4:]}")
     logging.info(f"HubSpot key length: {len(hubspot_api_key)}")
     
-    # HubSpot API keys should typically start with 'pat-' for Personal Access Keys
-    # or be a UUID-style token for app access tokens
-    if not hubspot_api_key.startswith('pat-') and len(hubspot_api_key) < 30:
-        logging.error(f"HubSpot API key appears invalid. Expected 'pat-' prefix or UUID format.")
-        return None, {'error': 'Invalid HubSpot API key format'}
+    # HubSpot Personal Access Keys can have different formats:
+    # - Older format: starts with 'pat-'
+    # - Newer format: starts with 'CiRu' or other prefixes (100+ chars)
+    # Both use Bearer authentication
     
     # Use Bearer authentication for all HubSpot API keys
     headers = {
@@ -1351,9 +1337,11 @@ def hubspot_request(url, payload=None, method='POST'):
     }
     
     if hubspot_api_key.startswith('pat-'):
-        logging.info("Using Bearer authentication with Personal Access Key")
+        logging.info("Using Bearer authentication with older Personal Access Key format")
+    elif hubspot_api_key.startswith('CiRu'):
+        logging.info("Using Bearer authentication with newer Personal Access Key format")
     else:
-        logging.info("Using Bearer authentication with App Access Token")
+        logging.info("Using Bearer authentication with HubSpot API key")
     
     try:
         logging.info(f"Making HubSpot request to: {url}")
