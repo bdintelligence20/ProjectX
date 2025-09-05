@@ -1316,14 +1316,39 @@ def hubspot_request(url, payload=None, method='POST'):
     if not hubspot_api_key:
         return None, {'error': 'HubSpot API key not configured'}
     
-    try:
+    # Strip any whitespace or quotes that might have been added
+    original_key = hubspot_api_key
+    hubspot_api_key = hubspot_api_key.strip().strip('"').strip("'")
+    
+    # Debug key format
+    logging.info(f"HubSpot key first 4 chars: {hubspot_api_key[:4]}...")
+    logging.info(f"HubSpot key last 4 chars: ...{hubspot_api_key[-4:]}")
+    logging.info(f"HubSpot key length: {len(hubspot_api_key)}")
+    logging.info(f"Contains 'pat-': {'pat-' in hubspot_api_key}")
+    
+    # Check if it's a Personal Access Key (should start with 'pat-')
+    if not hubspot_api_key.startswith('pat-'):
+        logging.warning(f"HubSpot API key does not start with 'pat-'. It starts with: {hubspot_api_key[:10]}...")
+    
+    # Try different authentication methods based on key format
+    if hubspot_api_key.startswith('pat-'):
+        # Personal Access Key - use Bearer authentication
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {hubspot_api_key}'
         }
-        
+        logging.info("Using Bearer authentication with Personal Access Key")
+    else:
+        # Try as a private app access token (these don't have pat- prefix)
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {hubspot_api_key}'
+        }
+        logging.info("Using Bearer authentication (assuming private app access token)")
+    
+    try:
         logging.info(f"Making HubSpot request to: {url}")
-        logging.info(f"Using Bearer auth with key length: {len(hubspot_api_key)}")
+        logging.info(f"Authorization header being sent: Bearer {hubspot_api_key[:10]}...{hubspot_api_key[-4:]}")
         
         if method == 'POST':
             response = requests.post(url, json=payload, headers=headers, timeout=15)
