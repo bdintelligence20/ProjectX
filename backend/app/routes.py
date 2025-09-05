@@ -1317,13 +1317,20 @@ def check_hubspot_contact_by_email(email):
         if not hubspot_api_key:
             return {'exists': False, 'error': 'HubSpot API key not configured'}
         
-        # HubSpot API endpoint to search for contacts
+        # HubSpot API endpoint to search for contacts  
         url = f"https://api.hubapi.com/crm/v3/objects/contacts/search"
         
+        # Try different authentication methods - HubSpot can be picky about format
         headers = {
-            'Authorization': f'Bearer {hubspot_api_key}',
             'Content-Type': 'application/json'
         }
+        
+        # Method 1: Bearer token (for private app access tokens)
+        if hubspot_api_key.startswith('pat-'):
+            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        else:
+            # Method 2: Use as query parameter for API keys
+            url = f"https://api.hubapi.com/crm/v3/objects/contacts/search?hapikey={hubspot_api_key}"
         
         # Search for contact by email
         search_payload = {
@@ -1383,10 +1390,17 @@ def check_hubspot_company_by_domain(domain):
         # HubSpot API endpoint to search for companies
         url = f"https://api.hubapi.com/crm/v3/objects/companies/search"
         
+        # Try different authentication methods - HubSpot can be picky about format
         headers = {
-            'Authorization': f'Bearer {hubspot_api_key}',
             'Content-Type': 'application/json'
         }
+        
+        # Method 1: Bearer token (for private app access tokens)
+        if hubspot_api_key.startswith('pat-'):
+            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        else:
+            # Method 2: Use as query parameter for API keys
+            url = f"https://api.hubapi.com/crm/v3/objects/companies/search?hapikey={hubspot_api_key}"
         
         # Clean domain (remove protocol, www, etc.)
         clean_domain = domain.lower().replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
@@ -1579,10 +1593,18 @@ def test_hubspot_connection():
         
         # Test the connection by getting account info
         url = "https://api.hubapi.com/account-info/v3/details"
+        
+        # Try different authentication methods - HubSpot can be picky about format
         headers = {
-            'Authorization': f'Bearer {hubspot_api_key}',
             'Content-Type': 'application/json'
         }
+        
+        # Method 1: Bearer token (for private app access tokens)
+        if hubspot_api_key.startswith('pat-'):
+            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        else:
+            # Method 2: Use as query parameter for API keys
+            url = f"https://api.hubapi.com/account-info/v3/details?hapikey={hubspot_api_key}"
         
         response = requests.get(url, headers=headers, timeout=10)
         
@@ -1593,13 +1615,15 @@ def test_hubspot_connection():
                 'message': 'HubSpot API connection successful',
                 'account_name': account_data.get('portalName', 'Unknown'),
                 'account_id': account_data.get('portalId'),
-                'api_key_configured': True
+                'api_key_configured': True,
+                'auth_method': 'Bearer token' if hubspot_api_key.startswith('pat-') else 'API key parameter'
             }), 200
         else:
             return jsonify({
                 'success': False,
                 'error': f'HubSpot API error: {response.status_code}',
-                'details': response.text[:200]
+                'details': response.text[:200],
+                'auth_method_tried': 'Bearer token' if hubspot_api_key.startswith('pat-') else 'API key parameter'
             }), 400
             
     except Exception as e:
