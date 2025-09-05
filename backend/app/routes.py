@@ -1325,14 +1325,15 @@ def check_hubspot_contact_by_email(email):
             'Content-Type': 'application/json'
         }
         
-        # Detect token type and use appropriate authentication
-        # Personal access tokens and private app tokens use Bearer auth
-        # Legacy API keys (shorter, alphanumeric with hyphens) use hapikey parameter
-        if len(hubspot_api_key) > 50 or hubspot_api_key.startswith('pat-'):
-            # Long tokens are typically personal access tokens or private app tokens
+        # Personal access tokens should use Bearer auth with specific format
+        if len(hubspot_api_key) > 50:
+            # This is a personal access token - use Bearer with proper format
+            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        elif hubspot_api_key.startswith('pat-'):
+            # Private app access token
             headers['Authorization'] = f'Bearer {hubspot_api_key}'
         else:
-            # Shorter tokens are likely legacy API keys
+            # Legacy API keys use hapikey parameter
             url = f"https://api.hubapi.com/crm/v3/objects/contacts/search?hapikey={hubspot_api_key}"
         
         # Search for contact by email
@@ -1398,14 +1399,15 @@ def check_hubspot_company_by_domain(domain):
             'Content-Type': 'application/json'
         }
         
-        # Detect token type and use appropriate authentication
-        # Personal access tokens and private app tokens use Bearer auth
-        # Legacy API keys (shorter, alphanumeric with hyphens) use hapikey parameter
-        if len(hubspot_api_key) > 50 or hubspot_api_key.startswith('pat-'):
-            # Long tokens are typically personal access tokens or private app tokens
+        # Personal access tokens should use Bearer auth with specific format
+        if len(hubspot_api_key) > 50:
+            # This is a personal access token - use Bearer with proper format
+            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        elif hubspot_api_key.startswith('pat-'):
+            # Private app access token
             headers['Authorization'] = f'Bearer {hubspot_api_key}'
         else:
-            # Shorter tokens are likely legacy API keys
+            # Legacy API keys use hapikey parameter
             url = f"https://api.hubapi.com/crm/v3/objects/companies/search?hapikey={hubspot_api_key}"
         
         # Clean domain (remove protocol, www, etc.)
@@ -1605,14 +1607,15 @@ def test_hubspot_connection():
             'Content-Type': 'application/json'
         }
         
-        # Detect token type and use appropriate authentication
-        # Personal access tokens and private app tokens use Bearer auth
-        # Legacy API keys (shorter, alphanumeric with hyphens) use hapikey parameter
-        if len(hubspot_api_key) > 50 or hubspot_api_key.startswith('pat-'):
-            # Long tokens are typically personal access tokens or private app tokens
+        # Personal access tokens should use Bearer auth with specific format
+        if len(hubspot_api_key) > 50:
+            # This is a personal access token - use Bearer with proper format
+            headers['Authorization'] = f'Bearer {hubspot_api_key}'
+        elif hubspot_api_key.startswith('pat-'):
+            # Private app access token
             headers['Authorization'] = f'Bearer {hubspot_api_key}'
         else:
-            # Shorter tokens are likely legacy API keys
+            # Legacy API keys use hapikey parameter
             url = f"https://api.hubapi.com/account-info/v3/details?hapikey={hubspot_api_key}"
         
         response = requests.get(url, headers=headers, timeout=10)
