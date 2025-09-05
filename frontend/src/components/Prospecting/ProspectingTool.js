@@ -131,7 +131,81 @@ function ProspectingTool() {
       { value: 'COO', label: 'Chief Operating Officer (COO)' },
       { value: 'CMO', label: 'Chief Marketing Officer (CMO)' },
       { value: 'CHRO', label: 'Chief HR Officer (CHRO)' },
-      { value: 'CIO', label: 'Chief Information Officer (CIO)' }
+      { value: 'CIO', label: 'Chief Information Officer (CIO)' },
+      { value: 'CLO', label: 'Chief Learning Officer (CLO)' },
+      { value: 'Chief Transformation Officer', label: 'Chief Transformation Officer' }
+    ]},
+    { category: 'Learning & Development Leadership', titles: [
+      { value: 'VP Learning & Development', label: 'VP Learning & Development' },
+      { value: 'Director of Learning & Development', label: 'Director of Learning & Development' },
+      { value: 'Head of Learning & Development', label: 'Head of Learning & Development' },
+      { value: 'Head of Learning', label: 'Head of Learning' },
+      { value: 'Director of Talent Development', label: 'Director of Talent Development' },
+      { value: 'Head of Talent Development', label: 'Head of Talent Development' },
+      { value: 'Director of Training', label: 'Director of Training' },
+      { value: 'Head of Training', label: 'Head of Training' },
+      { value: 'Learning Director', label: 'Learning Director' }
+    ]},
+    { category: 'HR Leadership', titles: [
+      { value: 'HR Director', label: 'HR Director' },
+      { value: 'Head of HR', label: 'Head of HR' },
+      { value: 'Group HR Executive', label: 'Group HR Executive' },
+      { value: 'VP Human Resources', label: 'VP Human Resources' },
+      { value: 'Director of Human Resources', label: 'Director of Human Resources' },
+      { value: 'Head of People', label: 'Head of People' },
+      { value: 'Chief People Officer', label: 'Chief People Officer (CPO)' }
+    ]},
+    { category: 'Transformation & Change Leadership', titles: [
+      { value: 'Head of Transformation', label: 'Head of Transformation' },
+      { value: 'Director of Transformation', label: 'Director of Transformation' },
+      { value: 'Strategy Executive', label: 'Strategy Executive' },
+      { value: 'Head of Change', label: 'Head of Change' },
+      { value: 'Director of Change Management', label: 'Director of Change Management' },
+      { value: 'Head of Organizational Development', label: 'Head of Organizational Development' },
+      { value: 'Director of Organizational Development', label: 'Director of Organizational Development' }
+    ]},
+    { category: 'L&D Management', titles: [
+      { value: 'L&D Manager', label: 'L&D Manager' },
+      { value: 'Learning & Development Manager', label: 'Learning & Development Manager' },
+      { value: 'Training Manager', label: 'Training Manager' },
+      { value: 'Talent Development Manager', label: 'Talent Development Manager' },
+      { value: 'Learning Manager', label: 'Learning Manager' },
+      { value: 'Organizational Development Manager', label: 'Organizational Development Manager' },
+      { value: 'Change Management Manager', label: 'Change Management Manager' },
+      { value: 'Performance Manager', label: 'Performance Manager' },
+      { value: 'Capability Manager', label: 'Capability Manager' }
+    ]},
+    { category: 'L&D Specialists & Consultants', titles: [
+      { value: 'Learning Consultant', label: 'Learning Consultant' },
+      { value: 'Learning Lead', label: 'Learning Lead' },
+      { value: 'L&D Specialist', label: 'L&D Specialist' },
+      { value: 'Learning & Development Specialist', label: 'Learning & Development Specialist' },
+      { value: 'Training Specialist', label: 'Training Specialist' },
+      { value: 'Learning Designer', label: 'Learning Designer' },
+      { value: 'Learning Experience Designer', label: 'Learning Experience Designer' },
+      { value: 'Instructional Designer', label: 'Instructional Designer' },
+      { value: 'Performance Consultant', label: 'Performance Consultant' },
+      { value: 'Change Management Consultant', label: 'Change Management Consultant' },
+      { value: 'Organizational Development Consultant', label: 'Organizational Development Consultant' },
+      { value: 'Talent Development Consultant', label: 'Talent Development Consultant' },
+      { value: 'Learning Facilitator', label: 'Learning Facilitator' },
+      { value: 'Training Coordinator', label: 'Training Coordinator' },
+      { value: 'Learning Coordinator', label: 'Learning Coordinator' }
+    ]},
+    { category: 'Technology Leadership', titles: [
+      { value: 'IT Director', label: 'IT Director' },
+      { value: 'Head of Technology', label: 'Head of Technology' },
+      { value: 'Head of IT', label: 'Head of IT' },
+      { value: 'VP Technology', label: 'VP Technology' },
+      { value: 'VP Information Technology', label: 'VP Information Technology' }
+    ]},
+    { category: 'Procurement & Operations', titles: [
+      { value: 'Procurement Manager', label: 'Procurement Manager' },
+      { value: 'Head of Procurement', label: 'Head of Procurement' },
+      { value: 'Strategic Sourcing Lead', label: 'Strategic Sourcing Lead' },
+      { value: 'Supply Chain Specialist', label: 'Supply Chain Specialist' },
+      { value: 'Procurement Specialist', label: 'Procurement Specialist' },
+      { value: 'Director of Procurement', label: 'Director of Procurement' }
     ]},
     { category: 'Director Level', titles: [
       { value: 'Director of Sales', label: 'Director of Sales' },
@@ -147,14 +221,18 @@ function ProspectingTool() {
       { value: 'Product Manager', label: 'Product Manager' },
       { value: 'Project Manager', label: 'Project Manager' },
       { value: 'Account Manager', label: 'Account Manager' },
-      { value: 'Engineering Manager', label: 'Engineering Manager' }
+      { value: 'Engineering Manager', label: 'Engineering Manager' },
+      { value: 'HR Manager', label: 'HR Manager' },
+      { value: 'People Manager', label: 'People Manager' }
     ]},
     { category: 'Individual Contributors', titles: [
       { value: 'Software Engineer', label: 'Software Engineer' },
       { value: 'Account Executive', label: 'Account Executive' },
       { value: 'Business Analyst', label: 'Business Analyst' },
       { value: 'Sales Representative', label: 'Sales Representative' },
-      { value: 'Marketing Specialist', label: 'Marketing Specialist' }
+      { value: 'Marketing Specialist', label: 'Marketing Specialist' },
+      { value: 'HR Business Partner', label: 'HR Business Partner' },
+      { value: 'HR Generalist', label: 'HR Generalist' }
     ]},
     { category: 'Other', titles: [
       { value: 'Founder', label: 'Founder' },
@@ -165,11 +243,20 @@ function ProspectingTool() {
   ];
 
   const departments = [
+    { value: 'learning_development', label: 'Learning & Development' },
+    { value: 'talent_development', label: 'Talent Development' },
+    { value: 'training', label: 'Training' },
+    { value: 'organizational_development', label: 'Organizational Development' },
+    { value: 'hr', label: 'Human Resources' },
+    { value: 'people', label: 'People & Culture' },
+    { value: 'transformation', label: 'Transformation' },
+    { value: 'change_management', label: 'Change Management' },
+    { value: 'strategy', label: 'Strategy' },
+    { value: 'procurement', label: 'Procurement' },
     { value: 'sales', label: 'Sales' },
     { value: 'marketing', label: 'Marketing' },
     { value: 'engineering', label: 'Engineering' },
     { value: 'product', label: 'Product' },
-    { value: 'hr', label: 'Human Resources' },
     { value: 'finance', label: 'Finance' },
     { value: 'operations', label: 'Operations' },
     { value: 'it', label: 'Information Technology' },
