@@ -1320,31 +1320,40 @@ def hubspot_request(url, payload=None, method='POST'):
     original_key = hubspot_api_key
     hubspot_api_key = hubspot_api_key.strip().strip('"').strip("'")
     
+    # Check if the key might be base64 encoded (common mistake)
+    if hubspot_api_key.startswith('CiRu'):
+        try:
+            import base64
+            decoded = base64.b64decode(hubspot_api_key).decode('utf-8')
+            if decoded.startswith('pat-'):
+                logging.info(f"Detected base64 encoded API key, decoded successfully")
+                hubspot_api_key = decoded
+            else:
+                logging.warning(f"Base64 decoded but doesn't start with 'pat-': {decoded[:10]}...")
+        except Exception as e:
+            logging.warning(f"Failed to decode as base64: {e}")
+    
     # Debug key format
-    logging.info(f"HubSpot key first 4 chars: {hubspot_api_key[:4]}...")
+    logging.info(f"HubSpot key first 10 chars: {hubspot_api_key[:10]}...")
     logging.info(f"HubSpot key last 4 chars: ...{hubspot_api_key[-4:]}")
     logging.info(f"HubSpot key length: {len(hubspot_api_key)}")
-    logging.info(f"Contains 'pat-': {'pat-' in hubspot_api_key}")
     
-    # Check if it's a Personal Access Key (should start with 'pat-')
-    if not hubspot_api_key.startswith('pat-'):
-        logging.warning(f"HubSpot API key does not start with 'pat-'. It starts with: {hubspot_api_key[:10]}...")
+    # HubSpot API keys should typically start with 'pat-' for Personal Access Keys
+    # or be a UUID-style token for app access tokens
+    if not hubspot_api_key.startswith('pat-') and len(hubspot_api_key) < 30:
+        logging.error(f"HubSpot API key appears invalid. Expected 'pat-' prefix or UUID format.")
+        return None, {'error': 'Invalid HubSpot API key format'}
     
-    # Try different authentication methods based on key format
+    # Use Bearer authentication for all HubSpot API keys
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {hubspot_api_key}'
+    }
+    
     if hubspot_api_key.startswith('pat-'):
-        # Personal Access Key - use Bearer authentication
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {hubspot_api_key}'
-        }
         logging.info("Using Bearer authentication with Personal Access Key")
     else:
-        # Try as a private app access token (these don't have pat- prefix)
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {hubspot_api_key}'
-        }
-        logging.info("Using Bearer authentication (assuming private app access token)")
+        logging.info("Using Bearer authentication with App Access Token")
     
     try:
         logging.info(f"Making HubSpot request to: {url}")
