@@ -1310,88 +1310,39 @@ def delete_research(research_id):
 
 
 # HubSpot Integration Functions
-def try_hubspot_auth_methods(url, payload=None, method='POST'):
-    """Try multiple HubSpot authentication methods until one works"""
+def hubspot_request(url, payload=None, method='POST'):
+    """Make HubSpot API request using Personal Access Key with Bearer authentication"""
     hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
     if not hubspot_api_key:
         return None, {'error': 'HubSpot API key not configured'}
     
-    # Method 1: Try as personal access token with Bearer auth
     try:
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {hubspot_api_key}'
         }
         
-        if method == 'POST':
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-        else:
-            response = requests.get(url, headers=headers, timeout=10)
-            
-        if response.status_code == 200:
-            logging.info("HubSpot auth successful with Bearer token")
-            return response, None
-        else:
-            logging.info(f"Bearer auth failed: {response.status_code}")
-    except Exception as e:
-        logging.info(f"Bearer auth exception: {e}")
-    
-    # Method 2: Try with hapikey parameter (legacy API key)
-    try:
-        headers = {
-            'Content-Type': 'application/json'
-        }
-        
-        # Add hapikey as URL parameter
-        separator = '&' if '?' in url else '?'
-        url_with_key = f"{url}{separator}hapikey={hubspot_api_key}"
+        logging.info(f"Making HubSpot request to: {url}")
+        logging.info(f"Using Bearer auth with key length: {len(hubspot_api_key)}")
         
         if method == 'POST':
-            response = requests.post(url_with_key, json=payload, headers=headers, timeout=10)
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
         else:
-            response = requests.get(url_with_key, headers=headers, timeout=10)
-            
+            response = requests.get(url, headers=headers, timeout=15)
+        
+        logging.info(f"HubSpot API response: {response.status_code}")
+        
         if response.status_code == 200:
-            logging.info("HubSpot auth successful with hapikey parameter")
+            logging.info("HubSpot request successful")
             return response, None
         else:
-            logging.info(f"Hapikey auth failed: {response.status_code}")
-    except Exception as e:
-        logging.info(f"Hapikey auth exception: {e}")
-    
-    # Method 3: Try different API version (v1 instead of v3)
-    try:
-        if 'v3' in url:
-            v1_url = url.replace('/crm/v3/objects/', '/contacts/v1/').replace('search', 'search/query')
-            headers = {
-                'Content-Type': 'application/json',
-                'Authorization': f'Bearer {hubspot_api_key}'
-            }
+            error_text = response.text[:500]
+            logging.error(f"HubSpot API failed: {response.status_code} - {error_text}")
+            return None, {'error': f'HubSpot API error: {response.status_code} - {error_text}'}
             
-            # Convert v3 payload to v1 format if needed
-            if payload and 'filterGroups' in payload:
-                v1_payload = {
-                    'query': payload['filterGroups'][0]['filters'][0]['value'],
-                    'properties': payload.get('properties', []),
-                    'count': payload.get('limit', 1)
-                }
-            else:
-                v1_payload = payload
-                
-            if method == 'POST':
-                response = requests.post(v1_url, json=v1_payload, headers=headers, timeout=10)
-            else:
-                response = requests.get(v1_url, headers=headers, timeout=10)
-                
-            if response.status_code == 200:
-                logging.info("HubSpot auth successful with v1 API")
-                return response, None
-            else:
-                logging.info(f"v1 API auth failed: {response.status_code}")
     except Exception as e:
-        logging.info(f"v1 API auth exception: {e}")
-    
-    return None, {'error': 'All HubSpot authentication methods failed'}
+        logging.error(f"HubSpot request exception: {str(e)}")
+        return None, {'error': f'Request failed: {str(e)}'}
 
 
 def check_hubspot_contact_by_email(email):
@@ -1417,7 +1368,7 @@ def check_hubspot_contact_by_email(email):
             'limit': 1
         }
         
-        response, error = try_hubspot_auth_methods(url, search_payload, 'POST')
+        response, error = hubspot_request(url, search_payload, 'POST')
         
         if error:
             return {'exists': False, 'error': error.get('error')}
@@ -1478,7 +1429,7 @@ def check_hubspot_company_by_domain(domain):
             'limit': 1
         }
         
-        response, error = try_hubspot_auth_methods(url, search_payload, 'POST')
+        response, error = hubspot_request(url, search_payload, 'POST')
         
         if error:
             return {'exists': False, 'error': error.get('error')}
@@ -1654,13 +1605,13 @@ def test_hubspot_connection():
         # Test the connection by getting account info
         url = "https://api.hubapi.com/account-info/v3/details"
         
-        response, error = try_hubspot_auth_methods(url, None, 'GET')
+        response, error = hubspot_request(url, None, 'GET')
         
         if error:
             return jsonify({
                 'success': False,
                 'error': error.get('error'),
-                'attempted_methods': ['Bearer token', 'hapikey parameter', 'v1 API']
+                'auth_method': 'Bearer token (Personal Access Key)'
             }), 400
         
         if response and response.status_code == 200:
@@ -1671,7 +1622,7 @@ def test_hubspot_connection():
                 'account_name': account_data.get('portalName', 'Unknown'),
                 'account_id': account_data.get('portalId'),
                 'api_key_configured': True,
-                'auth_method': 'Multi-method authentication (successful)'
+                'auth_method': 'Bearer token (Personal Access Key)'
             }), 200
         else:
             error_text = response.text if response else 'No response'
@@ -1679,7 +1630,7 @@ def test_hubspot_connection():
                 'success': False,
                 'error': f'HubSpot API error: {response.status_code if response else "No status"}',
                 'details': error_text[:200],
-                'attempted_methods': ['Bearer token', 'hapikey parameter', 'v1 API']
+                'auth_method': 'Bearer token (Personal Access Key)'
             }), 400
             
     except Exception as e:
