@@ -699,10 +699,10 @@ def apollo_people_search():
                 "contacts": []
             }), 500
         
-        # Build Apollo API request payload - limit to 50 results and reveal contact info
+        # Build Apollo API request payload - limit to 100 results and reveal contact info
         apollo_payload = {
             'page': 1,
-            'per_page': 50,  # Limit to 50 results to conserve credits
+            'per_page': 100,  # Increased to 100 results as requested
             'reveal_contact_info': True,  # This will use credits but reveal actual contact details
         }
         
@@ -1306,4 +1306,304 @@ def delete_research(research_id):
         return jsonify({
             "success": False,
             "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+# HubSpot Integration Functions
+def check_hubspot_contact_by_email(email):
+    """Check if a contact exists in HubSpot by email"""
+    try:
+        hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
+        if not hubspot_api_key:
+            return {'exists': False, 'error': 'HubSpot API key not configured'}
+        
+        # HubSpot API endpoint to search for contacts
+        url = f"https://api.hubapi.com/crm/v3/objects/contacts/search"
+        
+        headers = {
+            'Authorization': f'Bearer {hubspot_api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Search for contact by email
+        search_payload = {
+            'filterGroups': [
+                {
+                    'filters': [
+                        {
+                            'propertyName': 'email',
+                            'operator': 'EQ',
+                            'value': email
+                        }
+                    ]
+                }
+            ],
+            'properties': ['email', 'firstname', 'lastname', 'jobtitle', 'company', 'createdate'],
+            'limit': 1
+        }
+        
+        response = requests.post(url, json=search_payload, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get('results', [])
+            
+            if results:
+                contact = results[0]
+                properties = contact.get('properties', {})
+                return {
+                    'exists': True,
+                    'contact_id': contact.get('id'),
+                    'email': properties.get('email'),
+                    'first_name': properties.get('firstname'),
+                    'last_name': properties.get('lastname'),
+                    'job_title': properties.get('jobtitle'),
+                    'company': properties.get('company'),
+                    'created_date': properties.get('createdate'),
+                    'hubspot_url': f"https://app.hubspot.com/contacts/{contact.get('id')}"
+                }
+            else:
+                return {'exists': False}
+        else:
+            logging.error(f"HubSpot API error: {response.status_code} - {response.text}")
+            return {'exists': False, 'error': f'HubSpot API error: {response.status_code}'}
+            
+    except Exception as e:
+        logging.error(f"Error checking HubSpot contact: {str(e)}")
+        return {'exists': False, 'error': str(e)}
+
+
+def check_hubspot_company_by_domain(domain):
+    """Check if a company exists in HubSpot by domain"""
+    try:
+        hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
+        if not hubspot_api_key:
+            return {'exists': False, 'error': 'HubSpot API key not configured'}
+        
+        # HubSpot API endpoint to search for companies
+        url = f"https://api.hubapi.com/crm/v3/objects/companies/search"
+        
+        headers = {
+            'Authorization': f'Bearer {hubspot_api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Clean domain (remove protocol, www, etc.)
+        clean_domain = domain.lower().replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
+        
+        # Search for company by domain
+        search_payload = {
+            'filterGroups': [
+                {
+                    'filters': [
+                        {
+                            'propertyName': 'domain',
+                            'operator': 'EQ',
+                            'value': clean_domain
+                        }
+                    ]
+                }
+            ],
+            'properties': ['name', 'domain', 'industry', 'numberofemployees', 'createdate'],
+            'limit': 1
+        }
+        
+        response = requests.post(url, json=search_payload, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get('results', [])
+            
+            if results:
+                company = results[0]
+                properties = company.get('properties', {})
+                return {
+                    'exists': True,
+                    'company_id': company.get('id'),
+                    'name': properties.get('name'),
+                    'domain': properties.get('domain'),
+                    'industry': properties.get('industry'),
+                    'employee_count': properties.get('numberofemployees'),
+                    'created_date': properties.get('createdate'),
+                    'hubspot_url': f"https://app.hubspot.com/contacts/{company.get('id')}/company"
+                }
+            else:
+                return {'exists': False}
+        else:
+            logging.error(f"HubSpot API error: {response.status_code} - {response.text}")
+            return {'exists': False, 'error': f'HubSpot API error: {response.status_code}'}
+            
+    except Exception as e:
+        logging.error(f"Error checking HubSpot company: {str(e)}")
+        return {'exists': False, 'error': str(e)}
+
+
+@bp.route('/hubspot/check-prospect', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def check_hubspot_prospect():
+    """Check if a prospect (person or company) exists in HubSpot"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        data = request.json
+        prospect_type = data.get('type')  # 'person' or 'company'
+        prospect_data = data.get('data')
+        
+        if not prospect_type or not prospect_data:
+            return jsonify({"error": "Type and data required"}), 400
+        
+        if prospect_type == 'person':
+            email = prospect_data.get('email')
+            if not email or email == 'email_not_unlocked@domain.com':
+                return jsonify({
+                    'exists': False,
+                    'error': 'No valid email provided'
+                }), 200
+            
+            result = check_hubspot_contact_by_email(email)
+            return jsonify(result), 200
+            
+        elif prospect_type == 'company':
+            # Try to get domain from various sources
+            domain = None
+            if prospect_data.get('website_url'):
+                domain = prospect_data.get('website_url')
+            elif prospect_data.get('primary_domain'):
+                domain = prospect_data.get('primary_domain')
+            elif prospect_data.get('organization_name'):
+                # Try to construct domain from company name
+                company_name = prospect_data.get('organization_name')
+                domain = f"{company_name.lower().replace(' ', '').replace(',', '').replace('.', '')}.com"
+            
+            if not domain:
+                return jsonify({
+                    'exists': False,
+                    'error': 'No domain information available'
+                }), 200
+            
+            result = check_hubspot_company_by_domain(domain)
+            return jsonify(result), 200
+        
+        else:
+            return jsonify({"error": "Invalid type. Must be 'person' or 'company'"}), 400
+            
+    except Exception as e:
+        logging.error(f"Error in check_hubspot_prospect: {str(e)}")
+        return jsonify({
+            'exists': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+
+@bp.route('/hubspot/batch-check', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def batch_check_hubspot():
+    """Check multiple prospects in HubSpot (batch operation)"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        data = request.json
+        prospects = data.get('prospects', [])
+        
+        if not prospects:
+            return jsonify({"error": "No prospects provided"}), 400
+        
+        results = {}
+        
+        for prospect in prospects:
+            prospect_id = prospect.get('id')
+            prospect_type = prospect.get('type', 'person')
+            prospect_data = prospect.get('data')
+            
+            if not prospect_id or not prospect_data:
+                continue
+            
+            try:
+                if prospect_type == 'person':
+                    email = prospect_data.get('email')
+                    if email and email != 'email_not_unlocked@domain.com':
+                        result = check_hubspot_contact_by_email(email)
+                        results[prospect_id] = result
+                    else:
+                        results[prospect_id] = {'exists': False, 'error': 'No valid email'}
+                        
+                elif prospect_type == 'company':
+                    domain = prospect_data.get('website_url') or prospect_data.get('primary_domain')
+                    if domain:
+                        result = check_hubspot_company_by_domain(domain)
+                        results[prospect_id] = result
+                    else:
+                        results[prospect_id] = {'exists': False, 'error': 'No domain available'}
+                        
+                # Add small delay to avoid rate limiting
+                import time
+                time.sleep(0.1)
+                
+            except Exception as e:
+                logging.error(f"Error checking prospect {prospect_id}: {str(e)}")
+                results[prospect_id] = {'exists': False, 'error': str(e)}
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error in batch_check_hubspot: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+
+@bp.route('/hubspot/test', methods=['GET', 'OPTIONS'])
+@cross_origin(origins='https://projectx-frontend-3owg.onrender.com')
+def test_hubspot_connection():
+    """Test HubSpot API connection"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        hubspot_api_key = os.environ.get('HUBSPOT_API_KEY')
+        
+        if not hubspot_api_key:
+            return jsonify({
+                'success': False,
+                'error': 'HubSpot API key not configured'
+            }), 400
+        
+        # Test the connection by getting account info
+        url = "https://api.hubapi.com/account-info/v3/details"
+        headers = {
+            'Authorization': f'Bearer {hubspot_api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            account_data = response.json()
+            return jsonify({
+                'success': True,
+                'message': 'HubSpot API connection successful',
+                'account_name': account_data.get('portalName', 'Unknown'),
+                'account_id': account_data.get('portalId'),
+                'api_key_configured': True
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'HubSpot API error: {response.status_code}',
+                'details': response.text[:200]
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'HubSpot connection test failed: {str(e)}'
         }), 500
